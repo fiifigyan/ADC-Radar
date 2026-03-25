@@ -1,0 +1,43 @@
+tool:
+  name: "Africa Digital Consultancy Radar"
+  version: "1.0.0"
+  author: "Your Name"
+  description: "Automated tracker for digital consultancy opportunities in Africa"
+
+sources:
+  enabled:
+    - devex
+    - mock  # For testing without real scraping
+  scrape_interval_days: 7
+
+scoring:
+  weights:
+    data_digital_skill: 40
+    africa_focus: 25
+    private_sector_context: 15
+    individual_consultancy: 10
+    roster_call: 10
+  thresholds:
+    high_priority: 80
+    medium_priority: 60
+    low_priority: 0
+
+ai:
+  model: "gpt-3.5-turbo"  # or "gpt-4"
+  temperature: 0.2
+  max_tokens: 500
+
+export:
+  formats:
+    - json
+    - csv
+    - excel
+  email_digest: true
+  notion_sync: true
+
+email:
+  enabled: true
+  sender: "Africa Digital Radar <radar@yourdomain.com>"
+  recipients:
+    - "team@yourdomain.com"
+  subject_prefix: "[Africa Digital Radar]"
