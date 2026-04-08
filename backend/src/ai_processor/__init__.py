@@ -2,10 +2,9 @@
 AI module for Africa Digital Consultancy Radar
 """
 
-from src.ai.classifier import OpportunityClassifier
-from src.ai.summarizer import WeeklySummarizer
+from src.ai_processor.ai_service import AIProcessor, get_ai_processor
 
 __all__ = [
-    'OpportunityClassifier',
-    'WeeklySummarizer'
+    'AIProcessor',
+    'get_ai_processor'
 ]

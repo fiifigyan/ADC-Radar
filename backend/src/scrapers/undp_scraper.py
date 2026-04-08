@@ -1,37 +1,34 @@
 """
-Devex.com scraper - Extracts opportunities from Devex.com
+UNDP (United Nations Development Programme) scraper
 """
 from bs4 import BeautifulSoup
 from typing import List
-import re
 from src.scrapers.base_scraper import BaseScraper, ScrapedData
 from src.models.opportunity import SourcePlatform
-from src.utils.job_parser import JobTextParser
 
-class DevexScraper(BaseScraper):
-    """Scraper for Devex.com opportunities"""
+class UndpScraper(BaseScraper):
+    """Scraper for UNDP job opportunities"""
     
     def __init__(self):
-        super().__init__(SourcePlatform.DEVEX, "https://www.devex.com/jobs")
+        super().__init__(SourcePlatform.UNDP, "https://jobs.undp.org")
     
     def parse_opportunities(self, html: str) -> List[ScrapedData]:
-        """Parse Devex job listings with flexible selectors"""
+        """Parse UNDP job listings with flexible selectors"""
         soup = BeautifulSoup(html, 'html.parser')
         opportunities = []
         
-        # Try multiple selector strategies for robustness
-        job_cards = soup.select(
-            '.opportunity-row, .job-row, .listing-item, .job-card, .job-listing, '
-            '[class*="opportunity"], [class*="listing"], [class*="job"], '
-            'div[role="article"], article, li[data-job]'
+        job_listings = soup.select(
+            '.vacancy-item, .job-posting, .vacancy, [class*="vacancy"], '
+            '[class*="opportunity"], [class*="posting"], '
+            'div[role="article"], article'
         )
         
-        for card in job_cards[:30]:
+        for item in job_listings[:30]:
             try:
-                # Extract title - try multiple strategies
+                # Extract title - flexible approach
                 title = None
-                for selector in ['h2', 'h3', 'h4', '[class*="title"]', '[class*="name"]', 'a.job-link']:
-                    title_elem = card.select_one(selector)
+                for selector in ['h2', 'h3', '[class*="title"]', '[class*="name"]', 'a.job-link']:
+                    title_elem = item.select_one(selector)
                     if title_elem:
                         extracted = self.clean_text(title_elem.get_text())
                         if extracted and len(extracted) > 3:
@@ -41,10 +38,10 @@ class DevexScraper(BaseScraper):
                 if not title:
                     title = "Untitled Opportunity"
                 
-                # Extract organization
+                # Extract organization - flexible approach
                 organization = None
-                for selector in ['[class*="org"]', '[class*="employer"]', '[class*="company"]', '.entity', 'strong']:
-                    org_elem = card.select_one(selector)
+                for selector in ['[class*="office"]', '[class*="org"]', '[class*="employer"]', '.entity', 'strong']:
+                    org_elem = item.select_one(selector)
                     if org_elem:
                         extracted = self.clean_text(org_elem.get_text())
                         if extracted and len(extracted) > 2 and extracted.lower() not in ['home', 'n/a']:
@@ -52,12 +49,12 @@ class DevexScraper(BaseScraper):
                             break
                 
                 if not organization:
-                    organization = "Unknown Organization"
+                    organization = "UNDP"
                 
                 # Extract description
                 description = ""
                 for selector in ['[class*="desc"]', '[class*="summary"]', '.content', 'p']:
-                    desc_elem = card.select_one(selector)
+                    desc_elem = item.select_one(selector)
                     if desc_elem:
                         extracted = self.clean_text(desc_elem.get_text())
                         if extracted and len(extracted) > 10:
@@ -66,16 +63,16 @@ class DevexScraper(BaseScraper):
                 
                 # Extract URL
                 url = ""
-                link_elem = card.select_one('a[href]')
+                link_elem = item.select_one('a[href]')
                 if link_elem:
                     url = link_elem.get('href', '')
                     if url and not url.startswith('http'):
-                        url = f"https://www.devex.com{url}" if url.startswith('/') else f"https://www.devex.com/{url}"
+                        url = f"https://jobs.undp.org{url}" if url.startswith('/') else f"https://jobs.undp.org/{url}"
                 
                 # Extract deadline
                 deadline = None
                 for selector in ['[class*="deadline"]', '[class*="closing"]', '[class*="expires"]', 'time']:
-                    deadline_elem = card.select_one(selector)
+                    deadline_elem = item.select_one(selector)
                     if deadline_elem:
                         deadline = self.clean_text(deadline_elem.get_text())
                         if deadline:
@@ -86,13 +83,13 @@ class DevexScraper(BaseScraper):
                     organization=organization,
                     description=description,
                     url=url,
-                    deadline=deadline,
-                    raw_html=str(card)[:1000]
+                    deadline=deadline
                 )
+                
                 opportunities.append(opportunity)
                 
             except Exception as e:
-                print(f"Error parsing Devex job card: {e}")
+                self.logger.error(f"Error parsing UNDP job listing: {e}")
                 continue
         
         return opportunities

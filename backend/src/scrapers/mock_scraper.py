@@ -5,7 +5,7 @@ import json
 import random
 from datetime import datetime, timedelta
 from typing import List
-from src.scraper.base_scraper import BaseScraper, ScrapedData
+from src.scrapers.base_scraper import BaseScraper, ScrapedData
 from src.models.opportunity import Opportunity, SourcePlatform
 
 class MockScraper(BaseScraper):

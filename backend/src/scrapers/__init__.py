@@ -2,9 +2,12 @@
 Scraper module for Africa Digital Consultancy Radar
 """
 
-from src.scraper.base_scraper import BaseScraper, ScrapedData
-from src.scraper.mock_scraper import MockScraper
-from src.scraper.devex_scraper import DevexScraper
+from src.scrapers.base_scraper import BaseScraper, ScrapedData
+from src.scrapers.devex_scraper import DevexScraper
+from src.scrapers.impactpool_scraper import ImpactpoolScraper
+from src.scrapers.undp_scraper import UndpScraper
+from src.scrapers.worldbank_scraper import WorldBankScraper
+from src.scrapers.developmentaid_scraper import DevelopmentaidScraper
 
 __all__ = [
     'BaseScraper',
