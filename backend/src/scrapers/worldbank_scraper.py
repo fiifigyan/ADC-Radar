@@ -10,78 +10,71 @@ class WorldBankScraper(BaseScraper):
     """Scraper for World Bank job opportunities"""
     
     def __init__(self):
-        super().__init__(SourcePlatform.WORLD_BANK, "https://www.worldbank.org/en/about/jobs/search")
+        super().__init__(SourcePlatform.WORLD_BANK, "https://worldbankgroup.csod.com/ux/ats/careersite/1/home")
     
     def parse_opportunities(self, html: str) -> List[ScrapedData]:
-        """Parse World Bank job listings"""
+        """Parse World Bank job listings from CSOD ATS platform"""
         soup = BeautifulSoup(html, 'html.parser')
         opportunities = []
         
-        # Find job postings - multiple selector strategies
-        job_items = soup.select('.job-item, .position-card, .vacancy, .job-posting, li.job')
+        # World Bank uses CSOD ATS - job listings appear as links with job titles
+        # Find all links that contain job postings
+        all_links = soup.find_all('a', href=True)
         
-        for item in job_items[:30]:
+        job_links = []
+        for link in all_links:
+            text = link.get_text(strip=True)
+            href = link.get('href', '')
+            
+            # Filter for actual job links (not navigation/utility links)
+            if (len(text) > 10 and len(text) < 200 and 
+                ('job' in href.lower() or 'position' in text.lower() or 
+                 'specialist' in text.lower() or 'manager' in text.lower() or 
+                 'assistant' in text.lower() or 'officer' in text.lower())):
+                job_links.append(link)
+        
+        # Process unique job listings (limit to 30)
+        seen_titles = set()
+        for link in job_links[:50]:
             try:
-                # Extract title - try multiple selectors
-                title = "Untitled Opportunity"
-                for selector in ['.position-title', 'h2', 'h3', '[class*="title"]', '[class*="name"]', 'a.job-link']:
-                    title_elem = item.select_one(selector)
-                    if title_elem:
-                        extracted = self.clean_text(title_elem.get_text())
-                        if extracted and len(extracted) > 3:
-                            title = extracted
-                            break
+                title = link.get_text(strip=True)
                 
-                # Extract organization - try multiple selectors
-                organization = "World Bank"
-                for selector in ['.organization', '.group', '.unit', '[class*="company"]', '[class*="org"]', '.employer']:
-                    org_elem = item.select_one(selector)
-                    if org_elem:
-                        extracted = self.clean_text(org_elem.get_text())
-                        if extracted and len(extracted) > 2:
-                            organization = extracted
-                            break
+                # Skip duplicates and invalid entries
+                if title in seen_titles or len(title) < 5:
+                    continue
                 
-                # Extract description - try multiple selectors
-                description = ""
-                for selector in ['.job-description', '.summary', '.description', '[class*="desc"]', 'p']:
-                    desc_elem = item.select_one(selector)
-                    if desc_elem:
-                        extracted = self.clean_text(desc_elem.get_text())
-                        if extracted and len(extracted) > 10:
-                            description = extracted
-                            break
+                seen_titles.add(title)
                 
                 # Extract URL
-                url = ""
-                link_elem = item.select_one('a[href]')
-                if link_elem:
-                    url = link_elem.get('href', '')
-                    if url and not url.startswith('http'):
-                        url = f"https://www.worldbank.org{url}" if url.startswith('/') else f"https://www.worldbank.org/{url}"
+                url = link.get('href', '')
+                if url and not url.startswith('http'):
+                    url = f"https://worldbankgroup.csod.com{url}"
                 
-                # Extract deadline - try multiple selectors
-                deadline = None
-                for selector in ['.deadline', '.closing-date', '.application-deadline', '[class*="date"]']:
-                    deadline_elem = item.select_one(selector)
-                    if deadline_elem:
-                        extracted = self.clean_text(deadline_elem.get_text())
-                        if extracted:
-                            deadline = extracted
-                            break
+                # Look for associated metadata (location, deadline) near the link
+                description = title
+                parent = link.parent
+                
+                # Try to get additional info from parent div/li
+                if parent:
+                    parent_text = parent.get_text(strip=True)
+                    if len(parent_text) > len(title):
+                        description = parent_text[:300]
                 
                 opportunity = ScrapedData(
                     title=title,
-                    organization=organization,
+                    organization="World Bank",
                     description=description,
-                    url=url,
-                    deadline=deadline
+                    url=url if url.startswith('http') else f"https://worldbankgroup.csod.com{url}"
                 )
                 
                 opportunities.append(opportunity)
                 
+                if len(opportunities) >= 30:
+                    break
+                    
             except Exception as e:
-                self.logger.error(f"Error parsing World Bank job listing: {e}")
+                self.logger.error(f"Error parsing World Bank job: {e}")
                 continue
         
         return opportunities
+

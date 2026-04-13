@@ -18,14 +18,14 @@
 
 .analyze-page h1 {
   font-size: 2.5rem;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
   font-weight: 700;
 }
 
 .subtitle {
   font-size: 1.1rem;
-  color: #7f8c8d;
+  color: var(--text-secondary);
   margin-bottom: 2rem;
 }
 
@@ -38,24 +38,24 @@
 }
 
 .ai-status.available {
-  background: #d5f4e6;
-  border-left-color: #2ecc71;
-  color: #27ae60;
+  background: var(--success-light);
+  border-left-color: var(--success);
+  color: var(--success-dark);
 }
 
 .ai-status.available h3 {
-  color: #27ae60;
+  color: var(--success);
   margin: 0 0 0.5rem 0;
 }
 
 .ai-status.unavailable {
-  background: #fadbd8;
-  border-left-color: #e74c3c;
-  color: #c0392b;
+  background: var(--danger-light);
+  border-left-color: var(--danger);
+  color: var(--danger-dark);
 }
 
 .ai-status.unavailable h3 {
-  color: #c0392b;
+  color: var(--danger);
   margin: 0 0 0.5rem 0;
 }
 
@@ -71,11 +71,11 @@
 
 /* Analysis Controls */
 .analysis-controls {
-  background: #f8f9fa;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
-  border: 2px solid #e9ecef;
+  border: 1px solid var(--border);
 }
 
 .control-group {
@@ -92,27 +92,31 @@
 
 .control-group select {
   padding: 0.75rem;
-  border: 2px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 1rem;
   flex: 1;
   min-width: 200px;
-  transition: border-color 0.3s ease;
+  transition: border-color var(--transition-base);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
 }
 
 .control-group select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-base);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -125,24 +129,25 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary);
   color: white;
   flex: 1;
   min-width: 200px;
 }
 
 .btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-secondary {
-  background: #3498db;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #2980b9;
+  background: var(--secondary-dark);
   transform: translateY(-2px);
 }
 
@@ -152,12 +157,12 @@
 }
 
 .btn-analyze {
-  background: #3498db;
+  background: var(--info);
   color: white;
 }
 
 .btn-analyze:hover:not(:disabled) {
-  background: #2980b9;
+  background: var(--info-dark);
 }
 
 /* Filter Controls */
@@ -166,9 +171,9 @@
   gap: 2rem;
   margin-bottom: 2rem;
   padding: 1rem;
-  background: #ffffff;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border);
 }
 
 .filter-controls label {
@@ -177,21 +182,21 @@
   gap: 0.5rem;
   cursor: pointer;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text-primary);
 }
 
 .filter-controls input[type='radio'] {
   cursor: pointer;
   width: 18px;
   height: 18px;
-  accent-color: #667eea;
+  accent-color: var(--primary);
 }
 
 /* Error Message */
 .error-message {
-  background: #fadbd8;
-  border-left: 4px solid #e74c3c;
-  color: #c0392b;
+  background: var(--danger-light);
+  border-left: 4px solid var(--danger);
+  color: var(--danger-dark);
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 2rem;
@@ -207,19 +212,20 @@
 }
 
 .opportunity-card {
-  background: white;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
   display: flex;
   flex-direction: column;
 }
 
 .opportunity-card:hover {
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
+  border-color: var(--primary);
 }
 
 .card-header {

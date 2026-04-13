@@ -1,4 +1,11 @@
 import React, { useState } from 'react';
+import {
+  SuccessIcon,
+  ErrorIcon,
+  LoadingIcon,
+  BriefcaseIcon,
+  PlusIcon,
+} from '../utils/icons';
 import '../styles/Submit.css';
 
 const Submit = () => {
@@ -39,7 +46,7 @@ const Submit = () => {
       }
 
       const result = await response.json();
-      setSuccessMessage('✓ Opportunity submitted successfully!');
+      setSuccessMessage('Opportunity submitted successfully!');
       
       // Reset form
       setFormData({
@@ -64,9 +71,24 @@ const Submit = () => {
 
   return (
     <div className="submit-page">
-      <h1>Submit an Opportunity</h1>
-      {successMessage && <div className="success-message">{successMessage}</div>}
-      {errorMessage && <div className="error-message">{errorMessage}</div>}
+      <div className="page-header">
+        <h1><BriefcaseIcon style={{ marginRight: '0.5em' }} /> Submit an Opportunity</h1>
+        <p className="subtitle">Add a new opportunity to the database</p>
+      </div>
+
+      {successMessage && (
+        <div className="alert alert-success">
+          <SuccessIcon size="1.25em" style={{ marginRight: '0.75em' }} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="alert alert-error">
+          <ErrorIcon size="1.25em" style={{ marginRight: '0.75em' }} />
+          <span>{errorMessage}</span>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="submit-form">
         <div className="form-group">
@@ -156,7 +178,17 @@ const Submit = () => {
           className="submit-btn"
           disabled={loading}
         >
-          {loading ? 'Submitting...' : 'Submit Opportunity'}
+          {loading ? (
+            <>
+              <LoadingIcon size="1em" style={{ marginRight: '0.5em' }} />
+              Submitting...
+            </>
+          ) : (
+            <>
+              <PlusIcon size="1em" style={{ marginRight: '0.5em' }} />
+              Submit Opportunity
+            </>
+          )}
         </button>
       </form>
     </div>

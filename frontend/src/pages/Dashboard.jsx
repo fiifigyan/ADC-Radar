@@ -1,4 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import {
+  SearchIcon,
+  FilterIcon,
+  ExternalLinkIcon,
+  DeleteIcon,
+  SavePresetIcon,
+  CheckIcon,
+} from '../utils/icons';
+import { PriorityBadge, StatusBadge, SourceBadge } from '../components/Badge';
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
@@ -245,7 +254,7 @@ const Dashboard = () => {
             onClick={() => setShowFilters(!showFilters)}
             className={`filter-btn ${showFilters ? 'active' : ''}`}
           >
-            🔍 Filters {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+            <FilterIcon /> Filters {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
           </button>
         </form>
       </div>
@@ -330,7 +339,7 @@ const Dashboard = () => {
                 className="filter-select"
               >
                 <option value="all">All</option>
-                <option value="analyzed">Analyzed ✓</option>
+                <option value="analyzed">Analyzed</option>
                 <option value="unanalyzed">Unanalyzed</option>
               </select>
             </div>
@@ -388,7 +397,7 @@ const Dashboard = () => {
             <h4>Filter Presets</h4>
             <div className="preset-controls">
               <button onClick={saveFilterPreset} className="preset-btn">
-                💾 Save Current as Preset
+                <SavePresetIcon /> Save Current as Preset
               </button>
               {currentPresetName && (
                 <span className="preset-name">Current: <strong>{currentPresetName}</strong></span>
@@ -410,8 +419,9 @@ const Dashboard = () => {
                         onClick={() => deleteFilterPreset(preset.id)}
                         className="preset-delete-btn"
                         title="Delete preset"
+                        aria-label="Delete preset"
                       >
-                        ✕
+                        <DeleteIcon size="0.9em" />
                       </button>
                     </div>
                   ))}
@@ -438,12 +448,10 @@ const Dashboard = () => {
               <div className="card-header">
                 <div className="header-title">
                   <h3>{opp.title}</h3>
-                  <span className={`priority-badge priority-${(opp.priority || 'low').toLowerCase()}`}>
-                    {opp.priority || 'Unassigned'}
-                  </span>
+                  <PriorityBadge priority={opp.priority || 'Medium'} />
                 </div>
                 {opp.processed_at && (
-                  <span className="analyzed-badge">✓ Analyzed</span>
+                  <StatusBadge status="analyzed" />
                 )}
               </div>
 
@@ -452,7 +460,7 @@ const Dashboard = () => {
                   <strong>Organization:</strong> {opp.organization || 'Not specified'}
                 </p>
                 <p className="source-info">
-                  <strong>Source:</strong> <span className="source-tag">{opp.source_platform}</span>
+                  <strong>Source:</strong> <SourceBadge source={opp.source_platform} />
                 </p>
 
                 {opp.deadline && (
@@ -504,7 +512,7 @@ const Dashboard = () => {
               <div className="card-footer">
                 {opp.url ? (
                   <a href={opp.url} target="_blank" rel="noopener noreferrer" className="view-link">
-                    View Full Opportunity →
+                    View Full Opportunity <ExternalLinkIcon size="0.9em" />
                   </a>
                 ) : (
                   <span className="view-link disabled">No link available</span>

@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import logging
+import random
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from src.models.opportunity import Opportunity, SourcePlatform
@@ -34,20 +35,52 @@ class ScrapedData:
     raw_html: Optional[str] = None
 
 class BaseScraper:
-    """Base class for all scrapers"""
+    """Base class for all scrapers with anti-blocking measures"""
+    
+    # Pool of User-Agents to rotate and bypass bot detection
+    USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    ]
     
     def __init__(self, platform: SourcePlatform, base_url: str):
         self.platform = platform
         self.base_url = base_url
         self.session = requests.Session()
         self.logger = logger
+        self._update_user_agent()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
         })
     
+    def _update_user_agent(self):
+        """Rotate to a random User-Agent to bypass bot detection"""
+        user_agent = random.choice(self.USER_AGENTS)
+        self.session.headers.update({'User-Agent': user_agent})
+    
+    def _random_delay(self, min_seconds: float = 1, max_seconds: float = 3):
+        """Add random delay between requests to avoid rate limiting"""
+        delay = random.uniform(min_seconds, max_seconds)
+        time.sleep(delay)
+    
     def fetch_page(self, url: str) -> Optional[str]:
-        """Fetch HTML content from URL"""
+        """Fetch HTML content from URL with anti-blocking measures"""
         try:
+            # Rotate User-Agent for each request to avoid detection
+            self._update_user_agent()
+            
+            # Add random delay to avoid rate limiting
+            self._random_delay(min_seconds=0.5, max_seconds=2)
+            
             response = self.session.get(url, timeout=30)
             response.raise_for_status()
             return response.text
@@ -55,7 +88,7 @@ class BaseScraper:
             logger.error(f"Failed to fetch {url}: {e}")
             return None
     
-    def fetch_page_with_selenium(self, url: str, wait_time: int = 25) -> Optional[str]:
+    def fetch_page_with_selenium(self, url: str, wait_time: int = 10) -> Optional[str]:
         """Fetch HTML content using Selenium (handles JavaScript-rendered content)"""
         if not SELENIUM_AVAILABLE:
             logger.warning("Selenium not available. Falling back to requests.")
@@ -80,7 +113,6 @@ class BaseScraper:
             driver.get(url)
             
             # Wait for dynamic content to load
-            # Increased wait time to allow API calls to complete
             time.sleep(min(wait_time, 30))
             
             # Return rendered HTML

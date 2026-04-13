@@ -1,4 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import {
+  AnalyticsIcon,
+  TrendingUpIcon,
+  CheckIcon,
+} from '../utils/icons';
 import '../styles/Stats.css';
 
 const Stats = () => {
@@ -114,7 +119,7 @@ const Stats = () => {
 
   return (
     <div className="stats-page">
-      <h1>📊 Analytics Dashboard</h1>
+      <h1><AnalyticsIcon style={{ marginRight: '0.5em' }} /> Analytics Dashboard</h1>
       <p className="subtitle">Real-time insights from your opportunities database</p>
 
       {/* Key Metrics */}

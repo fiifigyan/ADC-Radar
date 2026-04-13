@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FaTwitter, FaLinkedin, FaGithub, FaBars, FaTimes } from 'react-icons/fa';
+import { FaTwitter, FaLinkedin, FaGithub, FaBars, FaTimes, FaMoon, FaSun } from 'react-icons/fa';
+import { useTheme } from '../contexts/ThemeContext';
 import '../styles/Header.css';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -40,6 +42,15 @@ const Header = () => {
           <NavLink to="/analyze" className="nav-link" activeClassName="active" onClick={closeMenu}>Analyze</NavLink>
           <NavLink to="/submit" className="nav-link" activeClassName="active" onClick={closeMenu}>Submit</NavLink>
           <NavLink to="/about" className="nav-link" activeClassName="active" onClick={closeMenu}>About</NavLink>
+          
+          <button
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+            title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+          >
+            {isDark ? <FaSun /> : <FaMoon />}
+          </button>
           
           <div className="social-links">
             <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="social-icon">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { RobotIcon, SuccessIcon, ErrorIcon, CheckIcon, LoadingIcon } from '../utils/icons';
 import '../styles/Analyze.css';
 
 const Analyze = () => {
@@ -57,7 +58,7 @@ const Analyze = () => {
 
       if (response.ok) {
         const data = await response.json();
-        alert(`✓ Analyzed ${data.total_analyzed} opportunities!`);
+        alert(`Analysis Complete: ${data.total_analyzed} opportunities analyzed!`);
         await loadOpportunities();
       } else {
         const data = await response.json();
@@ -88,7 +89,7 @@ const Analyze = () => {
 
       if (response.ok) {
         const data = await response.json();
-        alert(`✓ Analyzed ${data.total_analyzed} opportunities from ${selectedSource}!`);
+        alert(`Analysis Complete: ${data.total_analyzed} opportunities analyzed from ${selectedSource}!`);
         await loadOpportunities();
       } else {
         const data = await response.json();
@@ -111,7 +112,7 @@ const Analyze = () => {
       });
 
       if (response.ok) {
-        alert('✓ Opportunity analyzed!');
+        alert('Analysis Complete: Opportunity analyzed successfully!');
         await loadOpportunities();
       } else {
         const data = await response.json();
@@ -150,16 +151,29 @@ const Analyze = () => {
 
   return (
     <div className="analyze-page">
-      <h1>🤖 AI Analysis</h1>
+      <h1>
+        <RobotIcon size="1.5em" style={{ marginRight: '0.75rem', verticalAlign: 'middle' }} />
+        AI Analysis
+      </h1>
       <p className="subtitle">Analyze opportunities with AI for relevance and insights</p>
 
-      {error && <div className="error-message">❌ {error}</div>}
+      {error && (
+        <div className="error-message">
+          <ErrorIcon size="1.2em" style={{ marginRight: '0.5rem' }} />
+          {error}
+        </div>
+      )}
 
       {/* AI Status Section */}
       {aiStatus && (
         <div className={`ai-status ${aiStatus.available ? 'available' : 'unavailable'}`}>
           <h3>
-            {aiStatus.available ? '✓' : '✕'} AI Status
+            {aiStatus.available ? (
+              <CheckIcon color="var(--success)" size="1.25em" style={{ marginRight: '0.5rem' }} />
+            ) : (
+              <ErrorIcon color="var(--danger)" size="1.25em" style={{ marginRight: '0.5rem' }} />
+            )}
+            AI Status
           </h3>
           <p>{aiStatus.message}</p>
           {!aiStatus.available && (

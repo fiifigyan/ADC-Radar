@@ -2,19 +2,19 @@
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--bg-primary);
   min-height: calc(100vh - 80px);
 }
 
 .stats-page h1 {
   font-size: 2.5rem;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
   font-weight: 700;
 }
 
 .stats-page .subtitle {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   font-size: 1.1rem;
   margin-bottom: 2rem;
 }
@@ -28,12 +28,12 @@
 }
 
 .metric-card {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid var(--primary);
 }
 
 .metric-card:hover {
@@ -43,7 +43,7 @@
 
 .metric-card h3 {
   font-size: 0.95rem;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -53,38 +53,38 @@
 .metric-value {
   font-size: 2.5rem;
   font-weight: 700;
-  color: #667eea;
+  color: var(--primary);
   margin-bottom: 0.5rem;
 }
 
 .metric-card.analyzed {
-  border-left-color: #2ecc71;
+  border-left-color: var(--success);
 }
 
 .metric-card.analyzed .metric-value {
-  color: #2ecc71;
+  color: var(--success);
 }
 
 .metric-card.unanalyzed {
-  border-left-color: #f39c12;
+  border-left-color: var(--warning);
 }
 
 .metric-card.unanalyzed .metric-value {
-  color: #f39c12;
+  color: var(--warning);
 }
 
 .metric-card.relevance {
-  border-left-color: #9b59b6;
+  border-left-color: var(--accent);
 }
 
 .metric-card.relevance .metric-value {
-  color: #9b59b6;
+  color: var(--accent);
 }
 
 .metric-progress {
   width: 100%;
   height: 6px;
-  background: #ecf0f1;
+  background: var(--bg-tertiary);
   border-radius: 3px;
   overflow: hidden;
   margin: 0.5rem 0;
@@ -92,13 +92,13 @@
 
 .progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  background: var(--success);
   transition: width 0.3s ease;
 }
 
 .metric-desc {
   font-size: 0.85rem;
-  color: #999;
+  color: var(--text-tertiary);
   margin: 0;
 }
 
@@ -111,15 +111,15 @@
 }
 
 .chart-card {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .chart-card h2 {
   font-size: 1.3rem;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 1.5rem;
   font-weight: 600;
 }
@@ -144,14 +144,14 @@
 .bar-label {
   width: 120px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .bar-container {
   flex: 1;
   height: 35px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border-radius: 6px;
   overflow: hidden;
   position: relative;
@@ -190,15 +190,15 @@
 }
 
 .priority-item.high {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  background: var(--danger);
 }
 
 .priority-item.medium {
-  background: linear-gradient(135deg, #f39c12, #d68910);
+  background: var(--warning);
 }
 
 .priority-item.low {
-  background: linear-gradient(135deg, #3498db, #2980b9);
+  background: var(--info);
 }
 
 .priority-label {
@@ -244,14 +244,14 @@
 .region-name {
   width: 100px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
 .region-bar {
   flex: 1;
   height: 30px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   overflow: hidden;
   position: relative;
@@ -259,7 +259,7 @@
 
 .region-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: var(--secondary);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -286,14 +286,14 @@
 .timeline-month {
   width: 100px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
 .timeline-bar {
   flex: 1;
   height: 30px;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   overflow: hidden;
   position: relative;
@@ -301,7 +301,7 @@
 
 .timeline-fill {
   height: 100%;
-  background: linear-gradient(90deg, #f39c12, #e67e22);
+  background: var(--warning);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -320,7 +320,7 @@
 }
 
 .skill-tag {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: var(--primary);
   color: white;
   padding: 1rem;
   border-radius: 8px;
@@ -331,6 +331,7 @@
 
 .skill-tag:hover {
   transform: scale(1.05);
+  background: var(--primary-dark);
 }
 
 .skill-name {
@@ -352,16 +353,16 @@
 
 /* Summary Section */
 .summary-section {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   margin-bottom: 1.5rem;
 }
 
 .summary-section h2 {
   font-size: 1.3rem;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 1rem;
   font-weight: 600;
 }
@@ -377,24 +378,24 @@
 
 .summary-list li {
   padding: 1rem;
-  background: #f9f9f9;
-  border-left: 3px solid #667eea;
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--primary);
   border-radius: 4px;
-  color: #555;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
 .summary-list strong {
-  color: #333;
+  color: var(--text-primary);
 }
 
 /* Action Section */
 .action-section {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 1.5rem;
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 1rem;
 }
 
@@ -406,7 +407,7 @@
 /* No Data Message */
 .no-data {
   text-align: center;
-  color: #999;
+  color: var(--text-tertiary);
   padding: 2rem;
   font-style: italic;
 }

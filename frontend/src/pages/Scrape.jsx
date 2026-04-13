@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CheckIcon, LoadingIcon, DownloadIcon, SuccessIcon, ErrorIcon } from '../utils/icons';
 import '../styles/Scrape.css';
 
 const Scrape = () => {
@@ -26,11 +27,11 @@ const Scrape = () => {
   });
 
   const sources = [
-    { value: 'Devex', label: 'Devex', color: '#3498db' },
-    { value: 'Impactpool', label: 'Impactpool', color: '#2ecc71' },
-    { value: 'UNDP', label: 'UNDP', color: '#e74c3c' },
-    { value: 'World Bank', label: 'World Bank', color: '#f39c12' },
-    { value: 'DevelopmentAid', label: 'Development Aid', color: '#9b59b6' },
+    { value: 'Devex', label: 'Devex', colorClass: 'devex' },
+    { value: 'Impactpool', label: 'Impactpool', colorClass: 'impactpool' },
+    { value: 'UNDP', label: 'UNDP', colorClass: 'undp' },
+    { value: 'World Bank', label: 'World Bank', colorClass: 'world-bank' },
+    { value: 'DevelopmentAid', label: 'Development Aid', colorClass: 'development-aid' },
   ];
 
   useEffect(() => {
@@ -163,7 +164,7 @@ const Scrape = () => {
         });
         setShowScheduleForm(false);
         await loadSchedules();
-        alert('✓ Schedule created successfully!');
+        alert('Success: Schedule created successfully!');
       } else {
         const data = await response.json();
         alert(`Error: ${data.message || 'Failed to create schedule'}`);
@@ -188,7 +189,7 @@ const Scrape = () => {
 
       if (response.ok) {
         await loadSchedules();
-        alert('✓ Schedule deleted successfully!');
+        alert('Success: Schedule deleted successfully!');
       } else {
         alert('Failed to delete schedule');
       }
@@ -227,7 +228,7 @@ const Scrape = () => {
       if (!response.ok) throw new Error('Failed to sync to Notion');
 
       const data = await response.json();
-      alert(`✓ Synced ${data.synced.length} opportunities to Notion`);
+      alert(`Success: Synced ${data.synced.length} opportunities to Notion`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -237,15 +238,25 @@ const Scrape = () => {
 
   return (
     <div className="scrape-page">
-      <h1>🕷️ Scrape Opportunities</h1>
-      <p className="subtitle">Automatically fetch job opportunities from multiple sources</p>
+      <div className="page-header">
+        <h1>Web Scraper</h1>
+        <p className="page-subtitle">Automatically fetch job opportunities from multiple sources</p>
+      </div>
 
-      {error && <div className="error-message">❌ {error}</div>}
+      {error && (
+        <div className="error-message">
+          <ErrorIcon size="1.2em" style={{ marginRight: '0.5rem' }} />
+          {error}
+        </div>
+      )}
 
       {/* Statistics Section */}
       {stats && (
         <div className="stats-section">
-          <h2>📊 Current Statistics</h2>
+          <div className="section-header">
+            <h2>Current Statistics</h2>
+            <p className="section-subtitle">Overview of scraped opportunities</p>
+          </div>
           <div className="stats-grid">
             <div className="stat-card">
               <span className="stat-label">Total Opportunities</span>
@@ -260,7 +271,7 @@ const Scrape = () => {
           </div>
           {stats.last_scrape && (
             <p className="last-scrape">
-              Last scrape: {new Date(stats.last_scrape).toLocaleString()}
+              Last updated: {new Date(stats.last_scrape).toLocaleString()}
             </p>
           )}
         </div>
@@ -268,7 +279,10 @@ const Scrape = () => {
 
       {/* Source Selection */}
       <div className="sources-section">
-        <h2>📌 Select Sources to Scrape</h2>
+        <div className="section-header">
+          <h2>Select Sources</h2>
+          <p className="section-subtitle">Choose which platforms to scrape from</p>
+        </div>
         <div className="sources-list">
           {sources.map((source) => (
             <label key={source.value} className="source-checkbox">
@@ -293,7 +307,17 @@ const Scrape = () => {
           onClick={scrapeAll}
           disabled={loading}
         >
-          {loading ? '⏳ Scraping...' : '🚀 Scrape All Sources'}
+          {loading ? (
+            <>
+              <LoadingIcon size="1em" />
+              Scraping...
+            </>
+          ) : (
+            <>
+              <DownloadIcon size="1em" />
+              Scrape All Sources
+            </>
+          )}
         </button>
 
         {selectedSources.length === 1 && (
@@ -302,7 +326,17 @@ const Scrape = () => {
             onClick={() => scrapeSource(selectedSources[0])}
             disabled={loading}
           >
-            {loading ? '⏳ Scraping...' : `📥 Scrape ${selectedSources[0]}`}
+            {loading ? (
+              <>
+                <LoadingIcon size="1em" />
+                Scraping...
+              </>
+            ) : (
+              <>
+                <DownloadIcon size="1em" />
+                Scrape {selectedSources[0]}
+              </>
+            )}
           </button>
         )}
 
@@ -311,59 +345,77 @@ const Scrape = () => {
           onClick={syncToNotion}
           disabled={loading}
         >
-          {loading ? '⏳ Syncing...' : '💾 Sync to Notion'}
+          {loading ? (
+            <>
+              <LoadingIcon size="1em" />
+              Syncing...
+            </>
+          ) : (
+            <>
+              <CheckIcon size="1em" />
+              Sync to Notion
+            </>
+          )}
         </button>
       </div>
 
       {/* Results */}
       {results && (
         <div className="results-section">
-          <h2>✅ Scraping Results</h2>
+          <div className="section-header">
+            <h2>Scraping Results</h2>
+            <p className="section-subtitle">Summary of the most recent scrape</p>
+          </div>
           
           <div className="summary">
             <div className="summary-item">
-              <span>Total Scraped:</span>
+              <span>Total Scraped</span>
               <strong>{results.summary.total_scraped}</strong>
             </div>
             <div className="summary-item">
-              <span>Successfully Saved:</span>
+              <span>Successfully Saved</span>
               <strong>{results.summary.total_saved}</strong>
             </div>
             <div className="summary-item">
-              <span>Failed:</span>
+              <span>Failed</span>
               <strong className="error">{results.summary.total_failed}</strong>
             </div>
           </div>
 
-          <h3>Details by Source</h3>
-          <div className="sources-results">
-            {Object.entries(results.sources || {}).map(([source, sourceData]) => (
-              <div key={source} className="source-result">
-                <h4>{source}</h4>
-                <ul>
-                  <li>Scraped: <strong>{sourceData.scraped || 0}</strong></li>
-                  <li>Saved: <strong>{sourceData.saved || 0}</strong></li>
-                  <li>Failed: <strong>{sourceData.failed || 0}</strong></li>
-                  {sourceData.error && (
-                    <li className="error">Error: {sourceData.error}</li>
-                  )}
-                </ul>
-              </div>
-            ))}
+          <div className="results-details">
+            <h3>Details by Source</h3>
+            <div className="sources-results">
+              {Object.entries(results.sources || {}).map(([source, sourceData]) => (
+                <div key={source} className="source-result">
+                  <h4>{source}</h4>
+                  <ul>
+                    <li>Scraped: <strong>{sourceData.scraped || 0}</strong></li>
+                    <li>Saved: <strong>{sourceData.saved || 0}</strong></li>
+                    <li>Failed: <strong>{sourceData.failed || 0}</strong></li>
+                    {sourceData.error && (
+                      <li className="error">Error: {sourceData.error}</li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Schedule Management Section */}
       <div className="schedule-section">
+        <div className="section-header">
+          <h2>Automated Scheduling</h2>
+          <p className="section-subtitle">Create and manage recurring scrape tasks</p>
+        </div>
         <div className="schedule-header">
-          <h2>⏰ Automated Scheduling</h2>
           <button
             className="btn btn-secondary"
             onClick={() => setShowScheduleForm(!showScheduleForm)}
             disabled={loading}
           >
-            {showScheduleForm ? '✕ Close' : '➕ Create Schedule'}
+            {showScheduleForm ? 'Cancel' : 'Create New Schedule'}
           </button>
         </div>
 
@@ -477,7 +529,17 @@ const Scrape = () => {
               onClick={createSchedule}
               disabled={loading}
             >
-              {loading ? '⏳ Creating...' : '✓ Create Schedule'}
+              {loading ? (
+                <>
+                  <LoadingIcon size="1em" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <CheckIcon size="1em" />
+                  Create Schedule
+                </>
+              )}
             </button>
           </div>
         )}
@@ -508,14 +570,24 @@ const Scrape = () => {
                       onClick={() => updateScheduleEnabled(name, schedule.active)}
                       disabled={loading}
                     >
-                      {schedule.active ? '✓ Active' : '✕ Inactive'}
+                      {schedule.active ? (
+                        <>
+                          <CheckIcon size="0.9em" />
+                          Active
+                        </>
+                      ) : (
+                        <>
+                          <ErrorIcon size="0.9em" />
+                          Inactive
+                        </>
+                      )}
                     </button>
                     <button
                       className="btn-small btn-delete"
                       onClick={() => deleteSchedule(name)}
                       disabled={loading}
                     >
-                      🗑️ Delete
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -526,14 +598,47 @@ const Scrape = () => {
       </div>
 
       <div className="info-box">
-        <h3>ℹ️ How It Works</h3>
-        <ul>
-          <li>Select the sources you want to scrape from</li>
-          <li>Click "Scrape All Sources" to fetch opportunities from all enabled sources</li>
-          <li>Opportunities are automatically saved to the local database</li>
-          <li>Click "Sync to Notion" to upload them to your Notion database</li>
-          <li>Check the Dashboard to see all scraped opportunities</li>
-        </ul>
+        <div className="info-header">
+          <h3>Getting Started</h3>
+          <p className="info-subtitle">Follow these steps to start scraping opportunities</p>
+        </div>
+        <ol className="steps-list">
+          <li className="step-item">
+            <div className="step-number">1</div>
+            <div className="step-content">
+              <h4>Select Your Sources</h4>
+              <p>Choose which opportunity sources you want to scrape from. You can select all or specific ones.</p>
+            </div>
+          </li>
+          <li className="step-item">
+            <div className="step-number">2</div>
+            <div className="step-content">
+              <h4>Initiate Scraping</h4>
+              <p>Click "Scrape All Sources" to fetch opportunities. The process runs in the background.</p>
+            </div>
+          </li>
+          <li className="step-item">
+            <div className="step-number">3</div>
+            <div className="step-content">
+              <h4>Auto-Save to Database</h4>
+              <p>All scraped opportunities are automatically saved to your local database.</p>
+            </div>
+          </li>
+          <li className="step-item">
+            <div className="step-number">4</div>
+            <div className="step-content">
+              <h4>Sync to Notion</h4>
+              <p>Upload your opportunities to Notion for centralized management and sharing.</p>
+            </div>
+          </li>
+          <li className="step-item">
+            <div className="step-number">5</div>
+            <div className="step-content">
+              <h4>View & Analyze</h4>
+              <p>Head to the Dashboard to view, filter, and analyze all scraped opportunities.</p>
+            </div>
+          </li>
+        </ol>
       </div>
     </div>
   );
