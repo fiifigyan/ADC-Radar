@@ -4,7 +4,7 @@ Local JSON database for storing opportunities
 import json
 import os
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.models.opportunity import Opportunity
 
 class LocalDatabase:
@@ -109,7 +109,7 @@ class LocalDatabase:
     def delete_old_opportunities(self, days_old: int = 30):
         """Delete opportunities older than specified days"""
         all_opps = self.load_as_objects()
-        cutoff_date = datetime.now() - datetime.timedelta(days=days_old)
+        cutoff_date = datetime.now() - timedelta(days=days_old)
         
         recent_opps = [opp for opp in all_opps if opp.scraped_at > cutoff_date]
         

@@ -1,198 +1,108 @@
-import React, { useState } from 'react';
-import {
-  SuccessIcon,
-  ErrorIcon,
-  LoadingIcon,
-  BriefcaseIcon,
-  PlusIcon,
-} from '../utils/icons';
+import { useState } from 'react';
+import { FaPaperPlane, FaSpinner } from 'react-icons/fa';
+import { useNotification } from '../contexts/NotificationContext';
+import { createOpportunity } from '../utils/api';
 import '../styles/Submit.css';
 
-const Submit = () => {
-  const [formData, setFormData] = useState({
-    title: '',
-    organization: '',
-    url: '',
-    description: '',
-    priority: 'Medium',
-    source_platform: 'Mock Data',
-  });
-  const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+const EMPTY = { title: '', organization: '', url: '', description: '', priority: 'Medium', source_platform: 'Mock Data' };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+export default function Submit() {
+  const { success, error: notifyError } = useNotification();
+  const [form, setForm] = useState(EMPTY);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
+
+  const validate = () => {
+    const e = {};
+    if (!form.title.trim())        e.title = 'Title is required';
+    if (!form.organization.trim()) e.organization = 'Organization is required';
+    if (!form.description.trim())  e.description = 'Description is required';
+    if (form.url && !form.url.startsWith('http')) e.url = 'URL must start with http:// or https://';
+    setErrors(e);
+    return !Object.keys(e).length;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
     setLoading(true);
-    setSuccessMessage('');
-    setErrorMessage('');
-
     try {
-      const response = await fetch('http://localhost:5000/api/opportunities', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit opportunity');
-      }
-
-      const result = await response.json();
-      setSuccessMessage('Opportunity submitted successfully!');
-      
-      // Reset form
-      setFormData({
-        title: '',
-        organization: '',
-        url: '',
-        description: '',
-        priority: 'Medium',
-        source_platform: 'Mock Data',
-      });
-
-      // Clear message after 5 seconds
-      setTimeout(() => setSuccessMessage(''), 5000);
+      await createOpportunity(form);
+      success('Opportunity submitted successfully!');
+      setForm(EMPTY);
+      setErrors({});
     } catch (err) {
-      console.error('Error submitting opportunity:', err);
-      setErrorMessage('Failed to submit. Make sure the backend is running on http://localhost:5000');
-      setTimeout(() => setErrorMessage(''), 5000);
+      notifyError(err.message || 'Failed to submit. Is the backend running?');
     } finally {
       setLoading(false);
     }
   };
 
+  const Field = ({ label, name, ...props }) => (
+    <div className="form-group">
+      <label className="form-label" htmlFor={name}>{label}</label>
+      <input
+        id={name} name={name} className={`form-control${errors[name] ? ' form-control--error' : ''}`}
+        value={form[name]} onChange={e => set(name, e.target.value)} {...props}
+      />
+      {errors[name] && <span className="field-error">{errors[name]}</span>}
+    </div>
+  );
+
   return (
     <div className="submit-page">
       <div className="page-header">
-        <h1><BriefcaseIcon style={{ marginRight: '0.5em' }} /> Submit an Opportunity</h1>
-        <p className="subtitle">Add a new opportunity to the database</p>
+        <h1 className="page-title"><FaPaperPlane /> Submit an Opportunity</h1>
+        <p className="page-subtitle">Manually add an opportunity to the database</p>
       </div>
 
-      {successMessage && (
-        <div className="alert alert-success">
-          <SuccessIcon size="1.25em" style={{ marginRight: '0.75em' }} />
-          <span>{successMessage}</span>
-        </div>
-      )}
+      <div className="submit-card">
+        <form onSubmit={handleSubmit} noValidate>
+          <Field label="Opportunity Title *" name="title" placeholder="e.g. Senior Data Analyst" maxLength={300} />
+          <Field label="Organization *" name="organization" placeholder="e.g. UNDP Africa" maxLength={200} />
+          <Field label="URL" name="url" type="url" placeholder="https://example.com/job" />
 
-      {errorMessage && (
-        <div className="alert alert-error">
-          <ErrorIcon size="1.25em" style={{ marginRight: '0.75em' }} />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="submit-form">
-        <div className="form-group">
-          <label htmlFor="title">Opportunity Title *</label>
-          <input
-            type="text"
-            id="title"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            required
-            placeholder="e.g., Senior Data Analyst"
-          />
-        </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="description">Description *</label>
+            <textarea
+              id="description" className={`form-control${errors.description ? ' form-control--error' : ''}`}
+              value={form.description} onChange={e => set('description', e.target.value)}
+              placeholder="Describe the opportunity, responsibilities, requirements…"
+              rows={6}
+            />
+            {errors.description && <span className="field-error">{errors.description}</span>}
+            <span className="field-hint">{form.description.length} characters</span>
+          </div>
 
-        <div className="form-group">
-          <label htmlFor="organization">Organization/Company *</label>
-          <input
-            type="text"
-            id="organization"
-            name="organization"
-            value={formData.organization}
-            onChange={handleChange}
-            required
-            placeholder="e.g., UNDP Africa"
-          />
-        </div>
+          <div className="form-row form-row-2">
+            <div className="form-group">
+              <label className="form-label" htmlFor="priority">Priority</label>
+              <select id="priority" className="form-control" value={form.priority} onChange={e => set('priority', e.target.value)}>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="source_platform">Source</label>
+              <select id="source_platform" className="form-control" value={form.source_platform} onChange={e => set('source_platform', e.target.value)}>
+                <option value="Mock Data">User Submitted</option>
+                <option value="Devex">Devex</option>
+                <option value="Impactpool">Impactpool</option>
+                <option value="UNDP">UNDP</option>
+                <option value="World Bank">World Bank</option>
+                <option value="DevelopmentAid">DevelopmentAid</option>
+              </select>
+            </div>
+          </div>
 
-        <div className="form-group">
-          <label htmlFor="url">URL *</label>
-          <input
-            type="url"
-            id="url"
-            name="url"
-            value={formData.url}
-            onChange={handleChange}
-            required
-            placeholder="https://example.com/job"
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="description">Description *</label>
-          <textarea
-            id="description"
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            required
-            placeholder="Describe the opportunity..."
-            rows="6"
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="priority">Priority</label>
-          <select
-            id="priority"
-            name="priority"
-            value={formData.priority}
-            onChange={handleChange}
-          >
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="source_platform">Source Platform</label>
-          <select
-            id="source_platform"
-            name="source_platform"
-            value={formData.source_platform}
-            onChange={handleChange}
-          >
-            <option value="Mock Data">User Submitted</option>
-            <option value="Devex">Devex</option>
-            <option value="Impactpool">Impactpool</option>
-            <option value="UNDP">UNDP</option>
-            <option value="World Bank">World Bank</option>
-          </select>
-        </div>
-
-        <button 
-          type="submit" 
-          className="submit-btn"
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <LoadingIcon size="1em" style={{ marginRight: '0.5em' }} />
-              Submitting...
-            </>
-          ) : (
-            <>
-              <PlusIcon size="1em" style={{ marginRight: '0.5em' }} />
-              Submit Opportunity
-            </>
-          )}
-        </button>
-      </form>
+          <button type="submit" className="btn btn-primary btn-lg submit-btn" disabled={loading}>
+            {loading ? <><FaSpinner className="spin" /> Submitting…</> : <><FaPaperPlane /> Submit Opportunity</>}
+          </button>
+        </form>
+      </div>
     </div>
   );
-};
-
-export default Submit;
+}

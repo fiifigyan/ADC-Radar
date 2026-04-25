@@ -1,536 +1,376 @@
-import React, { useState, useEffect } from 'react';
-import {
-  SearchIcon,
-  FilterIcon,
-  ExternalLinkIcon,
-  DeleteIcon,
-  SavePresetIcon,
-  CheckIcon,
-} from '../utils/icons';
-import { PriorityBadge, StatusBadge, SourceBadge } from '../components/Badge';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FaExternalLinkAlt, FaFilter, FaRedo, FaSearch, FaSave, FaTimes, FaTrash } from 'react-icons/fa';
+import { PriorityBadge, SourceBadge, StatusBadge } from '../components/Badge';
+import { useNotification } from '../contexts/NotificationContext';
+import { getOpportunities } from '../utils/api';
 import '../styles/Dashboard.css';
 
-const Dashboard = () => {
+const DEFAULT_FILTERS = {
+  priority: [],
+  source: [],
+  minRelevance: 0,
+  maxRelevance: 100,
+  minDeadline: '',
+  maxDeadline: '',
+  analyzed: 'all',
+  sortBy: 'scraped_at',
+  sortOrder: 'desc',
+};
+
+export default function Dashboard() {
+  const { error: notifyError, success: notifySuccess } = useNotification();
   const [opportunities, setOpportunities] = useState([]);
-  const [filteredOpportunities, setFilteredOpportunities] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filterPresets, setFilterPresets] = useState([]);
-  const [currentPresetName, setCurrentPresetName] = useState('');
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [presets, setPresets] = useState(() =>
+    JSON.parse(localStorage.getItem('filterPresets') || '[]')
+  );
+  const [currentPreset, setCurrentPreset] = useState('');
+  const [presetNameInput, setPresetNameInput] = useState('');
+  const [showPresetInput, setShowPresetInput] = useState(false);
 
-  // Advanced filters state
-  const [filters, setFilters] = useState({
-    priority: [],
-    source: [],
-    minRelevance: 0,
-    maxRelevance: 100,
-    minDeadline: '',
-    maxDeadline: '',
-    analyzed: 'all', // 'all', 'analyzed', 'unanalyzed'
-    sortBy: 'deadline', // 'deadline', 'relevance', 'title', 'organization'
-    sortOrder: 'asc', // 'asc', 'desc'
-  });
-
-  // Fetch opportunities from backend API
   useEffect(() => {
-    const fetchOpportunities = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('http://localhost:5000/api/opportunities');
-        if (!response.ok) throw new Error('Failed to fetch opportunities');
-        const data = await response.json();
-        setOpportunities(data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching opportunities:', err);
-        setError('Failed to load opportunities. Make sure the backend is running on http://localhost:5000');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOpportunities();
-    loadFilterPresets();
+    getOpportunities()
+      .then(setOpportunities)
+      .catch(() => notifyError('Failed to load opportunities. Is the backend running?'))
+      .finally(() => setLoading(false));
   }, []);
 
-  // Apply filters and search whenever they change
-  useEffect(() => {
-    applyFiltersAndSearch();
+  const priorities = useMemo(() => [...new Set(opportunities.map(o => o.priority).filter(Boolean))], [opportunities]);
+  const sources    = useMemo(() => [...new Set(opportunities.map(o => o.source_platform).filter(Boolean))], [opportunities]);
+
+  const filtered = useMemo(() => {
+    let result = opportunities;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) result = result.filter(o =>
+      o.title?.toLowerCase().includes(q) ||
+      o.organization?.toLowerCase().includes(q) ||
+      o.description?.toLowerCase().includes(q)
+    );
+    if (filters.priority.length) result = result.filter(o => filters.priority.includes(o.priority));
+    if (filters.source.length)   result = result.filter(o => filters.source.includes(o.source_platform));
+    result = result.filter(o => {
+      const s = o.relevance_score || 0;
+      return s >= filters.minRelevance && s <= filters.maxRelevance;
+    });
+    if (filters.minDeadline) result = result.filter(o => !o.deadline || new Date(o.deadline) >= new Date(filters.minDeadline));
+    if (filters.maxDeadline) result = result.filter(o => !o.deadline || new Date(o.deadline) <= new Date(filters.maxDeadline));
+    if (filters.analyzed === 'analyzed')   result = result.filter(o => o.processed_at);
+    if (filters.analyzed === 'unanalyzed') result = result.filter(o => !o.processed_at);
+
+    return [...result].sort((a, b) => {
+      let cmp = 0;
+      switch (filters.sortBy) {
+        case 'deadline':    cmp = new Date(a.deadline || '9999') - new Date(b.deadline || '9999'); break;
+        case 'relevance':   cmp = (b.relevance_score || 0) - (a.relevance_score || 0); break;
+        case 'title':       cmp = (a.title || '').localeCompare(b.title || ''); break;
+        case 'organization':cmp = (a.organization || '').localeCompare(b.organization || ''); break;
+        case 'scraped_at':  cmp = new Date(b.scraped_at || 0) - new Date(a.scraped_at || 0); break;
+        default: cmp = 0;
+      }
+      return filters.sortOrder === 'desc' ? -cmp : cmp;
+    });
   }, [opportunities, searchQuery, filters]);
 
-  // Get unique values for filter options
-  const getPriorities = () => [...new Set(opportunities.map((o) => o.priority).filter(Boolean))];
-  const getSources = () => [...new Set(opportunities.map((o) => o.source_platform).filter(Boolean))];
+  const setFilter = useCallback((key, val) => setFilters(f => ({ ...f, [key]: val })), []);
+  const toggleMulti = useCallback((key, val) =>
+    setFilters(f => ({
+      ...f,
+      [key]: f[key].includes(val) ? f[key].filter(v => v !== val) : [...f[key], val],
+    })), []);
+  const resetFilters = () => { setFilters(DEFAULT_FILTERS); setSearchQuery(''); setCurrentPreset(''); };
 
-  // Apply all filters
-  const applyFiltersAndSearch = () => {
-    let result = opportunities;
-
-    // Search filter
-    if (searchQuery.trim()) {
-      result = result.filter(
-        (opp) =>
-          opp.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          opp.organization?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          opp.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Priority filter
-    if (filters.priority.length > 0) {
-      result = result.filter((opp) => filters.priority.includes(opp.priority));
-    }
-
-    // Source filter
-    if (filters.source.length > 0) {
-      result = result.filter((opp) => filters.source.includes(opp.source_platform));
-    }
-
-    // Relevance score filter
-    result = result.filter((opp) => {
-      const score = opp.relevance_score || 0;
-      return score >= filters.minRelevance && score <= filters.maxRelevance;
-    });
-
-    // Deadline filter
-    if (filters.minDeadline) {
-      result = result.filter((opp) => !opp.deadline || new Date(opp.deadline) >= new Date(filters.minDeadline));
-    }
-    if (filters.maxDeadline) {
-      result = result.filter((opp) => !opp.deadline || new Date(opp.deadline) <= new Date(filters.maxDeadline));
-    }
-
-    // Analysis status filter
-    if (filters.analyzed === 'analyzed') {
-      result = result.filter((opp) => opp.processed_at);
-    } else if (filters.analyzed === 'unanalyzed') {
-      result = result.filter((opp) => !opp.processed_at);
-    }
-
-    // Sorting
-    result.sort((a, b) => {
-      let comparison = 0;
-      switch (filters.sortBy) {
-        case 'deadline':
-          comparison = new Date(a.deadline || '9999-12-31') - new Date(b.deadline || '9999-12-31');
-          break;
-        case 'relevance':
-          comparison = (b.relevance_score || 0) - (a.relevance_score || 0);
-          break;
-        case 'title':
-          comparison = (a.title || '').localeCompare(b.title || '');
-          break;
-        case 'organization':
-          comparison = (a.organization || '').localeCompare(b.organization || '');
-          break;
-        default:
-          comparison = 0;
-      }
-
-      return filters.sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    setFilteredOpportunities(result);
-  };
-
-  // Handle filter changes
-  const handleFilterChange = (filterName, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [filterName]: value,
-    }));
-  };
-
-  // Toggle multi-select filters
-  const toggleFilter = (filterName, value) => {
-    setFilters((prev) => {
-      const current = prev[filterName];
-      if (current.includes(value)) {
-        return {
-          ...prev,
-          [filterName]: current.filter((v) => v !== value),
-        };
-      } else {
-        return {
-          ...prev,
-          [filterName]: [...current, value],
-        };
-      }
-    });
-  };
-
-  // Reset all filters
-  const resetFilters = () => {
-    setFilters({
-      priority: [],
-      source: [],
-      minRelevance: 0,
-      maxRelevance: 100,
-      minDeadline: '',
-      maxDeadline: '',
-      analyzed: 'all',
-      sortBy: 'deadline',
-      sortOrder: 'asc',
-    });
-    setSearchQuery('');
-    setCurrentPresetName('');
-  };
-
-  // Save filter preset
-  const saveFilterPreset = () => {
-    const name = prompt('Enter preset name:');
-    if (name && name.trim()) {
-      const newPreset = {
-        id: Date.now(),
-        name: name.trim(),
-        filters: JSON.parse(JSON.stringify(filters)),
-        searchQuery,
-      };
-      const presets = JSON.parse(localStorage.getItem('filterPresets') || '[]');
-      presets.push(newPreset);
-      localStorage.setItem('filterPresets', JSON.stringify(presets));
-      setFilterPresets(presets);
-      setCurrentPresetName(name.trim());
-    }
-  };
-
-  // Load filter preset
-  const loadFilterPreset = (preset) => {
-    setFilters(preset.filters);
-    setSearchQuery(preset.searchQuery);
-    setCurrentPresetName(preset.name);
-  };
-
-  // Load presets from localStorage
-  const loadFilterPresets = () => {
-    const presets = JSON.parse(localStorage.getItem('filterPresets') || '[]');
-    setFilterPresets(presets);
-  };
-
-  // Delete filter preset
-  const deleteFilterPreset = (id) => {
-    const updated = filterPresets.filter((p) => p.id !== id);
+  const savePreset = () => {
+    const name = presetNameInput.trim();
+    if (!name) return;
+    const updated = [...presets.filter(p => p.name !== name), { id: Date.now(), name, filters, searchQuery }];
     localStorage.setItem('filterPresets', JSON.stringify(updated));
-    setFilterPresets(updated);
+    setPresets(updated);
+    setCurrentPreset(name);
+    setPresetNameInput('');
+    setShowPresetInput(false);
+    notifySuccess(`Preset "${name}" saved`);
+  };
+  const loadPreset = (p) => { setFilters(p.filters); setSearchQuery(p.searchQuery); setCurrentPreset(p.name); };
+  const deletePreset = (id) => {
+    const updated = presets.filter(p => p.id !== id);
+    localStorage.setItem('filterPresets', JSON.stringify(updated));
+    setPresets(updated);
   };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    // Search is handled by useEffect
-  };
-
-  if (loading) {
-    return <div className="dashboard"><p>Loading opportunities...</p></div>;
-  }
-
-  if (error) {
-    return <div className="dashboard"><p style={{ color: 'red' }}>{error}</p></div>;
-  }
-
-  const activeFilterCount =
-    filters.priority.length +
-    filters.source.length +
+  const activeCount =
+    filters.priority.length + filters.source.length +
     (filters.minRelevance > 0 || filters.maxRelevance < 100 ? 1 : 0) +
     (filters.minDeadline || filters.maxDeadline ? 1 : 0) +
     (filters.analyzed !== 'all' ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0);
 
+  if (loading) return (
+    <div className="dashboard">
+      <div className="db-skeleton-grid">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton" style={{ height: 20, width: '70%', marginBottom: 8 }} />
+            <div className="skeleton" style={{ height: 14, width: '45%', marginBottom: 16 }} />
+            <div className="skeleton" style={{ height: 12, width: '100%', marginBottom: 6 }} />
+            <div className="skeleton" style={{ height: 12, width: '80%' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <main className="dashboard">
-      {/* Search Bar */}
-      <div className="search-container">
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', width: '100%', gap: '10px' }}>
+    <div className="dashboard">
+      {/* Search + filter bar */}
+      <div className="db-toolbar">
+        <div className="db-search-wrap">
+          <FaSearch className="db-search-icon" aria-hidden="true" />
           <input
-            type="text"
-            placeholder="Search opportunities, organizations..."
+            type="search"
+            className="db-search form-control"
+            placeholder="Search opportunities, organizations…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ flex: 1 }}
+            onChange={e => setSearchQuery(e.target.value)}
+            aria-label="Search opportunities"
           />
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`filter-btn ${showFilters ? 'active' : ''}`}
-          >
-            <FilterIcon /> Filters {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+          {searchQuery && (
+            <button className="db-search-clear icon-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
+              <FaTimes />
+            </button>
+          )}
+        </div>
+        <button
+          className={`btn btn-secondary btn-sm db-filter-toggle${activeCount ? ' db-filter-toggle--active' : ''}`}
+          onClick={() => setShowFilters(v => !v)}
+          aria-expanded={showFilters}
+        >
+          <FaFilter /> Filters {activeCount > 0 && <span className="db-badge">{activeCount}</span>}
+        </button>
+        {activeCount > 0 && (
+          <button className="btn btn-ghost btn-sm" onClick={resetFilters}>
+            <FaRedo /> Reset
           </button>
-        </form>
+        )}
       </div>
 
-      {/* Advanced Filters Panel */}
+      {/* Filters panel */}
       {showFilters && (
-        <div className="filters-panel">
-          <div className="filters-header">
-            <h3>Advanced Filters</h3>
-            <button onClick={resetFilters} className="reset-btn">
-              Reset All
-            </button>
-          </div>
-
-          {/* Two-column filter layout */}
-          <div className="filters-grid">
-            {/* Priority Filter */}
+        <div className="db-filters">
+          <div className="db-filters-grid">
+            {/* Priority */}
             <div className="filter-section">
-              <label>Priority</label>
-              <div className="checkbox-group">
-                {getPriorities().map((priority) => (
-                  <label key={priority} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={filters.priority.includes(priority)}
-                      onChange={() => toggleFilter('priority', priority)}
-                    />
-                    {priority}
+              <p className="filter-label">Priority</p>
+              <div className="check-group">
+                {priorities.map(p => (
+                  <label key={p} className="check-label">
+                    <input type="checkbox" checked={filters.priority.includes(p)} onChange={() => toggleMulti('priority', p)} />
+                    <PriorityBadge priority={p} />
                   </label>
                 ))}
+                {!priorities.length && <span className="text-muted text-sm">No data yet</span>}
               </div>
             </div>
 
-            {/* Source Filter */}
+            {/* Source */}
             <div className="filter-section">
-              <label>Source Platform</label>
-              <div className="checkbox-group">
-                {getSources().map((source) => (
-                  <label key={source} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={filters.source.includes(source)}
-                      onChange={() => toggleFilter('source', source)}
-                    />
-                    {source}
+              <p className="filter-label">Source Platform</p>
+              <div className="check-group">
+                {sources.map(s => (
+                  <label key={s} className="check-label">
+                    <input type="checkbox" checked={filters.source.includes(s)} onChange={() => toggleMulti('source', s)} />
+                    <SourceBadge source={s} />
                   </label>
                 ))}
+                {!sources.length && <span className="text-muted text-sm">No data yet</span>}
               </div>
             </div>
 
-            {/* Relevance Score Filter */}
+            {/* Relevance */}
             <div className="filter-section">
-              <label>
-                Relevance Score: {filters.minRelevance} - {filters.maxRelevance}%
-              </label>
-              <div className="slider-group">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={filters.minRelevance}
-                  onChange={(e) => handleFilterChange('minRelevance', parseInt(e.target.value))}
-                  className="slider"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={filters.maxRelevance}
-                  onChange={(e) => handleFilterChange('maxRelevance', parseInt(e.target.value))}
-                  className="slider"
-                />
+              <p className="filter-label">Relevance: {filters.minRelevance}% – {filters.maxRelevance}%</p>
+              <div className="range-group">
+                <input type="range" min={0} max={100} value={filters.minRelevance} onChange={e => setFilter('minRelevance', +e.target.value)} className="range-input" />
+                <input type="range" min={0} max={100} value={filters.maxRelevance} onChange={e => setFilter('maxRelevance', +e.target.value)} className="range-input" />
               </div>
             </div>
 
-            {/* Analysis Status Filter */}
+            {/* Analysis */}
             <div className="filter-section">
-              <label>Analysis Status</label>
-              <select
-                value={filters.analyzed}
-                onChange={(e) => handleFilterChange('analyzed', e.target.value)}
-                className="filter-select"
-              >
+              <p className="filter-label">Analysis Status</p>
+              <select className="form-control" value={filters.analyzed} onChange={e => setFilter('analyzed', e.target.value)}>
                 <option value="all">All</option>
                 <option value="analyzed">Analyzed</option>
-                <option value="unanalyzed">Unanalyzed</option>
+                <option value="unanalyzed">Not Analyzed</option>
               </select>
             </div>
 
-            {/* Deadline Range Filter */}
+            {/* Deadline */}
             <div className="filter-section">
-              <label>Deadline Range</label>
+              <p className="filter-label">Deadline Range</p>
               <div className="date-range">
-                <input
-                  type="date"
-                  value={filters.minDeadline}
-                  onChange={(e) => handleFilterChange('minDeadline', e.target.value)}
-                  placeholder="From"
-                  className="filter-input"
-                />
-                <span>to</span>
-                <input
-                  type="date"
-                  value={filters.maxDeadline}
-                  onChange={(e) => handleFilterChange('maxDeadline', e.target.value)}
-                  placeholder="To"
-                  className="filter-input"
-                />
+                <input type="date" className="form-control" value={filters.minDeadline} onChange={e => setFilter('minDeadline', e.target.value)} />
+                <span className="text-muted text-sm">to</span>
+                <input type="date" className="form-control" value={filters.maxDeadline} onChange={e => setFilter('maxDeadline', e.target.value)} />
               </div>
             </div>
 
-            {/* Sort Options */}
+            {/* Sort */}
             <div className="filter-section">
-              <label>Sort By</label>
-              <div className="sort-group">
-                <select
-                  value={filters.sortBy}
-                  onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                  className="filter-select"
-                >
+              <p className="filter-label">Sort</p>
+              <div className="sort-row">
+                <select className="form-control" value={filters.sortBy} onChange={e => setFilter('sortBy', e.target.value)}>
+                  <option value="scraped_at">Date Added</option>
                   <option value="deadline">Deadline</option>
-                  <option value="relevance">Relevance Score</option>
+                  <option value="relevance">Relevance</option>
                   <option value="title">Title</option>
                   <option value="organization">Organization</option>
                 </select>
-                <select
-                  value={filters.sortOrder}
-                  onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="asc">Ascending</option>
-                  <option value="desc">Descending</option>
+                <select className="form-control" value={filters.sortOrder} onChange={e => setFilter('sortOrder', e.target.value)}>
+                  <option value="desc">Newest First</option>
+                  <option value="asc">Oldest First</option>
                 </select>
               </div>
             </div>
           </div>
 
-          {/* Preset Management */}
-          <div className="preset-section">
-            <h4>Filter Presets</h4>
-            <div className="preset-controls">
-              <button onClick={saveFilterPreset} className="preset-btn">
-                <SavePresetIcon /> Save Current as Preset
-              </button>
-              {currentPresetName && (
-                <span className="preset-name">Current: <strong>{currentPresetName}</strong></span>
+          {/* Presets */}
+          <div className="db-presets">
+            <div className="db-presets-header">
+              <span className="filter-label">Saved Presets</span>
+              {!showPresetInput ? (
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowPresetInput(true)}>
+                  <FaSave /> Save Current
+                </button>
+              ) : (
+                <div className="preset-save-row">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Preset name…"
+                    value={presetNameInput}
+                    onChange={e => setPresetNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') setShowPresetInput(false); }}
+                    autoFocus
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={savePreset}>Save</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowPresetInput(false)}>Cancel</button>
+                </div>
               )}
             </div>
-            {filterPresets.length > 0 && (
-              <div className="preset-list">
-                <p className="preset-label">Saved Presets:</p>
-                <div className="preset-items">
-                  {filterPresets.map((preset) => (
-                    <div key={preset.id} className="preset-item">
-                      <button
-                        onClick={() => loadFilterPreset(preset)}
-                        className={`preset-load-btn ${currentPresetName === preset.name ? 'active' : ''}`}
-                      >
-                        {preset.name}
-                      </button>
-                      <button
-                        onClick={() => deleteFilterPreset(preset.id)}
-                        className="preset-delete-btn"
-                        title="Delete preset"
-                        aria-label="Delete preset"
-                      >
-                        <DeleteIcon size="0.9em" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            {presets.length > 0 && (
+              <div className="preset-chips">
+                {presets.map(p => (
+                  <div key={p.id} className={`preset-chip${currentPreset === p.name ? ' preset-chip--active' : ''}`}>
+                    <button onClick={() => loadPreset(p)}>{p.name}</button>
+                    <button onClick={() => deletePreset(p.id)} aria-label={`Delete preset ${p.name}`}><FaTrash /></button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Results Summary */}
-      <div className="opportunities-count">
-        <p>
-          Found <strong>{filteredOpportunities.length}</strong> opportunity/ies
-          {opportunities.length !== filteredOpportunities.length && (
-            <span> (out of {opportunities.length})</span>
-          )}
-        </p>
+      {/* Results header */}
+      <div className="db-results-header">
+        <span className="db-count">
+          <strong>{filtered.length}</strong> {filtered.length === 1 ? 'opportunity' : 'opportunities'}
+          {filtered.length !== opportunities.length && ` of ${opportunities.length}`}
+        </span>
+        {currentPreset && <span className="db-preset-tag">Filter: {currentPreset}</span>}
       </div>
-      <div className="opportunities-grid">
-        {filteredOpportunities.length > 0 ? (
-          filteredOpportunities.map((opp) => (
-            <div key={opp.id} className="opportunity-card">
-              <div className="card-header">
-                <div className="header-title">
-                  <h3>{opp.title}</h3>
-                  <PriorityBadge priority={opp.priority || 'Medium'} />
-                </div>
-                {opp.processed_at && (
-                  <StatusBadge status="analyzed" />
-                )}
-              </div>
 
-              <div className="card-body">
-                <p className="org-info">
-                  <strong>Organization:</strong> {opp.organization || 'Not specified'}
-                </p>
-                <p className="source-info">
-                  <strong>Source:</strong> <SourceBadge source={opp.source_platform} />
-                </p>
+      {/* Grid */}
+      {filtered.length > 0 ? (
+        <div className="db-grid">
+          {filtered.map(opp => <OpportunityCard key={opp.id} opp={opp} />)}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <FaSearch />
+          <p><strong>No opportunities found</strong></p>
+          <p>Try adjusting your filters or scrape new opportunities.</p>
+          {activeCount > 0 && <button className="btn btn-secondary btn-sm" onClick={resetFilters}>Clear Filters</button>}
+        </div>
+      )}
+    </div>
+  );
+}
 
-                {opp.deadline && (
-                  <p className="deadline-info">
-                    <strong>Deadline:</strong> {new Date(opp.deadline).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </p>
-                )}
+function OpportunityCard({ opp }) {
+  const daysLeft = opp.deadline
+    ? Math.ceil((new Date(opp.deadline) - Date.now()) / 86_400_000)
+    : null;
 
-                {opp.processed_at && (
-                  <div className="ai-metrics">
-                    {opp.relevance_score !== undefined && (
-                      <div className="metric-item">
-                        <span className="metric-label">Relevance:</span>
-                        <div className="metric-bar">
-                          <div
-                            className="metric-fill"
-                            style={{ width: `${opp.relevance_score}%` }}
-                          />
-                        </div>
-                        <span className="metric-value">{opp.relevance_score}%</span>
-                      </div>
-                    )}
-                    {opp.confidence_score !== undefined && (
-                      <div className="metric-item">
-                        <span className="metric-label">Confidence:</span>
-                        <div className="metric-bar">
-                          <div
-                            className="metric-fill"
-                            style={{ width: `${opp.confidence_score}%` }}
-                          />
-                        </div>
-                        <span className="metric-value">{opp.confidence_score}%</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+  const deadlineClass =
+    daysLeft === null ? '' :
+    daysLeft < 0  ? 'deadline--past' :
+    daysLeft < 7  ? 'deadline--urgent' :
+    daysLeft < 14 ? 'deadline--soon' : '';
 
-                {opp.ai_summary && (
-                  <p className="ai-summary">
-                    <strong>AI Summary:</strong> {opp.ai_summary}
-                  </p>
-                )}
-              </div>
+  return (
+    <article className="opp-card">
+      <div className="opp-card-header">
+        <PriorityBadge priority={opp.priority || 'Low'} />
+        {opp.processed_at && <StatusBadge status="analyzed" />}
+      </div>
 
-              <div className="card-footer">
-                {opp.url ? (
-                  <a href={opp.url} target="_blank" rel="noopener noreferrer" className="view-link">
-                    View Full Opportunity <ExternalLinkIcon size="0.9em" />
-                  </a>
-                ) : (
-                  <span className="view-link disabled">No link available</span>
-                )}
-              </div>
-            </div>
-          ))
+      <h3 className="opp-title" title={opp.title}>{opp.title || 'Untitled'}</h3>
+
+      <div className="opp-meta">
+        <span className="opp-org">{opp.organization || 'Unknown org'}</span>
+        <SourceBadge source={opp.source_platform} />
+      </div>
+
+      {opp.deadline && (
+        <div className={`opp-deadline ${deadlineClass}`}>
+          <span>
+            Deadline: {new Date(opp.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+          {daysLeft !== null && daysLeft >= 0 && (
+            <span className="deadline-badge">{daysLeft}d left</span>
+          )}
+          {daysLeft !== null && daysLeft < 0 && (
+            <span className="deadline-badge deadline-badge--past">Expired</span>
+          )}
+        </div>
+      )}
+
+      {opp.processed_at && (
+        <div className="opp-scores">
+          <ScoreBar label="Relevance" value={opp.relevance_score} color="var(--accent)" />
+          <ScoreBar label="Confidence" value={opp.confidence_score} color="var(--success)" />
+        </div>
+      )}
+
+      {opp.ai_summary && (
+        <p className="opp-summary">{opp.ai_summary}</p>
+      )}
+
+      <div className="opp-card-footer">
+        {opp.url ? (
+          <a href={opp.url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
+            View Opportunity <FaExternalLinkAlt />
+          </a>
         ) : (
-          <div className="no-results">
-            <p>No opportunities found matching your filters.</p>
-            <button onClick={resetFilters} className="reset-btn">
-              Clear All Filters
-            </button>
-          </div>
+          <span className="text-muted text-sm">No link available</span>
         )}
       </div>
-    </main>
+    </article>
   );
-};
+}
 
-export default Dashboard;
+function ScoreBar({ label, value = 0, color }) {
+  return (
+    <div className="score-row">
+      <span className="score-row-label">{label}</span>
+      <div className="score-bar">
+        <div className="score-fill" style={{ width: `${value}%`, background: color }} />
+      </div>
+      <span className="score-row-val">{value}%</span>
+    </div>
+  );
+}

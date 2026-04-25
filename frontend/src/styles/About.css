@@ -1,6 +1,80 @@
-.about-page {
-  padding: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
-  text-align: center;
+.about-page { display: flex; flex-direction: column; gap: 2.5rem; }
+
+/* Hero */
+.about-hero { text-align: center; padding: 2.5rem 1rem 0; }
+.about-radar-icon { color: var(--accent); width: 80px; height: 80px; margin: 0 auto 1.5rem; }
+.about-radar-icon svg { width: 100%; height: 100%; }
+.about-hero h1 { font-size: 2.25rem; margin-bottom: 1rem; }
+.about-tagline { font-size: 1.0625rem; color: var(--text-secondary); max-width: 540px; margin: 0 auto; line-height: 1.6; }
+
+/* Intro */
+.about-intro {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 1.5rem;
+  border-left: 4px solid var(--accent); box-shadow: var(--shadow-sm);
+}
+.about-intro p { font-size: 1rem; color: var(--text-secondary); line-height: 1.7; }
+
+/* Sections */
+.about-section { display: flex; flex-direction: column; gap: 1.25rem; }
+.about-section h2 { font-size: 1.375rem; font-weight: 700; color: var(--text-primary); }
+
+/* Features grid */
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.feature-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.feature-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.feature-icon { font-size: 1.5rem; color: var(--accent); margin-bottom: 0.75rem; }
+.feature-card h3 { font-size: 0.9375rem; font-weight: 700; margin-bottom: 0.5rem; }
+.feature-card p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.55; }
+
+/* Platform cards */
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+.platform-card {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 1rem; background: var(--bg-card);
+  border: 1.5px solid var(--border); border-radius: var(--radius-lg);
+  text-decoration: none; transition: all var(--transition);
+}
+.platform-card:hover { border-color: var(--plat-color); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.platform-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--plat-color); flex-shrink: 0; margin-top: 0.3rem; }
+.platform-card strong { display: block; font-size: 0.9375rem; color: var(--text-primary); margin-bottom: 0.25rem; }
+.platform-card p { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; }
+
+/* Flow steps */
+.flow-steps { display: flex; flex-direction: column; gap: 0; }
+.flow-step {
+  display: flex; align-items: flex-start; gap: 1.25rem;
+  padding: 1.125rem 1.25rem; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 0; position: relative;
+}
+.flow-step:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.flow-step:last-child  { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.flow-step + .flow-step { border-top: none; }
+.flow-num {
+  font-size: 0.75rem; font-weight: 800; color: var(--accent);
+  background: var(--accent-light); border-radius: 50%;
+  width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; letter-spacing: -0.03em;
+}
+.flow-step h3 { font-size: 0.9375rem; font-weight: 700; margin-bottom: 0.35rem; }
+.flow-step p  { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.55; }
+
+/* Tech stack */
+.about-tech h2 { margin-bottom: 0.75rem; }
+.tech-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tech-tag {
+  padding: 0.35rem 0.875rem; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary);
+  transition: all var(--transition);
+}
+.tech-tag:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+@media (max-width: 640px) {
+  .about-hero h1 { font-size: 1.75rem; }
+  .feature-grid, .platform-grid { grid-template-columns: 1fr; }
 }

@@ -106,9 +106,12 @@ class Opportunity:
         opp.organization = data.get('organization', '')
         opp.description = data.get('description', '')
         
-        # Set enums from strings
-        source_str = data.get('source_platform', 'MOCK')
-        opp.source_platform = SourcePlatform[source_str.replace(' ', '_').upper()]
+        # Set enums from strings (stored as values, not names)
+        source_str = data.get('source_platform', 'Mock Data')
+        try:
+            opp.source_platform = SourcePlatform(source_str)
+        except ValueError:
+            opp.source_platform = SourcePlatform.MOCK
         
         contract_str = data.get('contract_type', 'Other')
         opp.contract_type = ContractType(contract_str)
@@ -139,5 +142,17 @@ class Opportunity:
         opp.url = data.get('url', '')
         opp.application_url = data.get('application_url', '')
         opp.is_roster_call = data.get('is_roster_call', False)
-        
+
+        # Restore timestamps (previously missing — caused analyzed opps to appear unanalyzed)
+        if data.get('scraped_at'):
+            try:
+                opp.scraped_at = datetime.fromisoformat(data['scraped_at'].replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+        if data.get('processed_at'):
+            try:
+                opp.processed_at = datetime.fromisoformat(data['processed_at'].replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                opp.processed_at = None
+
         return opp

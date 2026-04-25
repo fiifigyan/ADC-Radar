@@ -6,9 +6,9 @@
       ],
       "time": "08:00",
       "type": "daily",
-      "enabled": true,
+      "enabled": false,
       "created_at": "2026-04-05T15:28:48.206733",
-      "updated_at": "2026-04-05T21:34:49.102710"
+      "updated_at": "2026-04-25T08:14:32.424057"
     }
   }
 }

@@ -1,327 +1,224 @@
-import React, { useState, useEffect } from 'react';
-import {
-  AnalyticsIcon,
-  TrendingUpIcon,
-  CheckIcon,
-} from '../utils/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { FaChartBar, FaDatabase, FaRobot, FaStar } from 'react-icons/fa';
+import { getOpportunities } from '../utils/api';
 import '../styles/Stats.css';
 
-const Stats = () => {
+const SOURCE_COLORS = {
+  Devex: '#EC4899', Impactpool: '#6366F1', UNDP: '#06B6D4',
+  'World Bank': '#3B82F6', DevelopmentAid: '#8B5CF6', 'Mock Data': '#6B7280',
+};
+
+export default function Stats() {
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    loadData();
+    getOpportunities()
+      .then(setOpportunities)
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadData = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/opportunities');
-      if (response.ok) {
-        const data = await response.json();
-        setOpportunities(data);
-        calculateStats(data);
-      }
-    } catch (err) {
-      console.error('Error loading opportunities:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const stats = useMemo(() => {
+    if (!opportunities.length) return null;
+    const analyzed    = opportunities.filter(o => o.processed_at);
+    const avgRelevance = analyzed.length
+      ? Math.round(analyzed.reduce((s, o) => s + (o.relevance_score || 0), 0) / analyzed.length)
+      : 0;
 
-  const calculateStats = (opps) => {
-    const totalOpps = opps.length;
-    const analyzed = opps.filter((o) => o.processed_at).length;
-    const unanalyzed = totalOpps - analyzed;
-
-    // By source
-    const bySource = {};
-    opps.forEach((o) => {
-      bySource[o.source_platform] = (bySource[o.source_platform] || 0) + 1;
-    });
-
-    // By priority
+    const bySource   = {};
     const byPriority = { High: 0, Medium: 0, Low: 0 };
-    opps.forEach((o) => {
-      if (o.priority) byPriority[o.priority]++;
-    });
-
-    // By region
-    const byRegion = {};
-    opps.forEach((o) => {
-      if (o.regions && Array.isArray(o.regions)) {
-        o.regions.forEach((region) => {
-          byRegion[region] = (byRegion[region] || 0) + 1;
-        });
-      }
-    });
-
-    // Relevance score average
-    const analyzedOpps = opps.filter((o) => o.relevance_score);
-    const avgRelevance =
-      analyzedOpps.length > 0
-        ? Math.round(
-            analyzedOpps.reduce((sum, o) => sum + (o.relevance_score || 0), 0) /
-              analyzedOpps.length
-          )
-        : 0;
-
-    // By deadline month
+    const byRegion   = {};
     const byDeadline = {};
-    opps.forEach((o) => {
-      if (o.deadline) {
-        const date = new Date(o.deadline);
-        const month = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        byDeadline[month] = (byDeadline[month] || 0) + 1;
-      }
-    });
-
-    // Top skills
     const skillCount = {};
-    opps.forEach((o) => {
-      const allSkills = [...(o.primary_skills || []), ...(o.secondary_skills || [])];
-      allSkills.forEach((skill) => {
-        skillCount[skill] = (skillCount[skill] || 0) + 1;
+
+    opportunities.forEach(o => {
+      bySource[o.source_platform] = (bySource[o.source_platform] || 0) + 1;
+      if (o.priority) byPriority[o.priority] = (byPriority[o.priority] || 0) + 1;
+      (o.regions || []).forEach(r => { byRegion[r] = (byRegion[r] || 0) + 1; });
+      if (o.deadline) {
+        const m = new Date(o.deadline).toLocaleString('default', { month: 'short', year: 'numeric' });
+        byDeadline[m] = (byDeadline[m] || 0) + 1;
+      }
+      [...(o.primary_skills || []), ...(o.secondary_skills || [])].forEach(s => {
+        skillCount[s] = (skillCount[s] || 0) + 1;
       });
     });
 
-    const topSkills = Object.entries(skillCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
+    const topSkills = Object.entries(skillCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const sourceMax = Math.max(...Object.values(bySource), 1);
 
-    setStats({
-      totalOpps,
-      analyzed,
-      unanalyzed,
-      bySource,
-      byPriority,
-      byRegion,
-      avgRelevance,
-      byDeadline,
-      topSkills,
-    });
-  };
+    return { analyzed: analyzed.length, avgRelevance, bySource, byPriority, byRegion, byDeadline, topSkills, sourceMax };
+  }, [opportunities]);
 
-  if (loading) {
-    return <div className="stats-page">Loading statistics...</div>;
-  }
-
-  if (!stats) {
-    return <div className="stats-page">No data available</div>;
-  }
-
-  const sourceEntries = Object.entries(stats.bySource);
-  const sourceMax = Math.max(...sourceEntries.map(([, v]) => v), 1);
-
-  const regionEntries = Object.entries(stats.byRegion).sort((a, b) => b[1] - a[1]);
-  const deadlineEntries = Object.entries(stats.byDeadline).sort((a, b) => new Date(a[0]) - new Date(b[0]));
-
-  return (
+  if (loading) return (
     <div className="stats-page">
-      <h1><AnalyticsIcon style={{ marginRight: '0.5em' }} /> Analytics Dashboard</h1>
-      <p className="subtitle">Real-time insights from your opportunities database</p>
-
-      {/* Key Metrics */}
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <h3>Total Opportunities</h3>
-          <div className="metric-value">{stats.totalOpps}</div>
-          <p className="metric-desc">All opportunities in database</p>
-        </div>
-
-        <div className="metric-card analyzed">
-          <h3>Analyzed</h3>
-          <div className="metric-value">{stats.analyzed}</div>
-          <div className="metric-progress">
-            <div
-              className="progress-bar"
-              style={{
-                width: `${stats.totalOpps > 0 ? (stats.analyzed / stats.totalOpps) * 100 : 0}%`,
-              }}
-            />
-          </div>
-          <p className="metric-desc">
-            {stats.totalOpps > 0 ? Math.round((stats.analyzed / stats.totalOpps) * 100) : 0}% analyzed
-          </p>
-        </div>
-
-        <div className="metric-card unanalyzed">
-          <h3>Unanalyzed</h3>
-          <div className="metric-value">{stats.unanalyzed}</div>
-          <p className="metric-desc">Pending AI analysis</p>
-        </div>
-
-        <div className="metric-card relevance">
-          <h3>Avg Relevance</h3>
-          <div className="metric-value">{stats.avgRelevance}%</div>
-          <p className="metric-desc">Based on AI analysis</p>
-        </div>
+      <div className="page-header">
+        <h1 className="page-title"><FaChartBar /> Analytics Dashboard</h1>
       </div>
-
-      {/* Charts Section */}
-      <div className="charts-section">
-        {/* Source Distribution */}
-        <div className="chart-card">
-          <h2>Opportunities by Source</h2>
-          <div className="bar-chart">
-            {sourceEntries.map(([source, count]) => (
-              <div key={source} className="bar-item">
-                <div className="bar-label">{source}</div>
-                <div className="bar-container">
-                  <div
-                    className="bar-fill"
-                    style={{ width: `${(count / sourceMax) * 100}%`, background: getSourceColor(source) }}
-                  >
-                    <span className="bar-value">{count}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Priority Distribution */}
-        <div className="chart-card">
-          <h2>Priority Distribution</h2>
-          <div className="priority-chart">
-            <div className="priority-item high">
-              <div className="priority-label">High</div>
-              <div className="priority-count">{stats.byPriority.High}</div>
-              <div className="priority-percent">
-                {((stats.byPriority.High / stats.totalOpps) * 100).toFixed(1)}%
-              </div>
-            </div>
-            <div className="priority-item medium">
-              <div className="priority-label">Medium</div>
-              <div className="priority-count">{stats.byPriority.Medium}</div>
-              <div className="priority-percent">
-                {((stats.byPriority.Medium / stats.totalOpps) * 100).toFixed(1)}%
-              </div>
-            </div>
-            <div className="priority-item low">
-              <div className="priority-label">Low</div>
-              <div className="priority-count">{stats.byPriority.Low}</div>
-              <div className="priority-percent">
-                {((stats.byPriority.Low / stats.totalOpps) * 100).toFixed(1)}%
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Two-Column Section */}
-      <div className="two-column-section">
-        {/* Opportunities by Region */}
-        <div className="chart-card">
-          <h2>Opportunities by Region</h2>
-          <div className="region-list">
-            {regionEntries.length > 0 ? (
-              regionEntries.map(([region, count]) => (
-                <div key={region} className="region-item">
-                  <div className="region-name">{region}</div>
-                  <div className="region-bar">
-                    <div
-                      className="region-fill"
-                      style={{
-                        width: `${(count / Math.max(...regionEntries.map((r) => r[1]))) * 100}%`,
-                      }}
-                    >
-                      {count}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="no-data">No region data available</p>
-            )}
-          </div>
-        </div>
-
-        {/* Deadline Timeline */}
-        <div className="chart-card">
-          <h2>Deadline Timeline</h2>
-          <div className="timeline-list">
-            {deadlineEntries.length > 0 ? (
-              deadlineEntries.map(([month, count]) => (
-                <div key={month} className="timeline-item">
-                  <div className="timeline-month">{month}</div>
-                  <div className="timeline-bar">
-                    <div
-                      className="timeline-fill"
-                      style={{
-                        width: `${(count / Math.max(...deadlineEntries.map((d) => d[1]))) * 100}%`,
-                      }}
-                    >
-                      {count}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="no-data">No deadline data available</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Top Skills */}
-      <div className="chart-card full-width">
-        <h2>Top 10 Required Skills</h2>
-        {stats.topSkills.length > 0 ? (
-          <div className="skills-grid">
-            {stats.topSkills.map(([skill, count]) => (
-              <div key={skill} className="skill-tag">
-                <div className="skill-name">{skill}</div>
-                <div className="skill-count">{count}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="no-data">No skill data available. Scrape and analyze opportunities to see skills.</p>
-        )}
-      </div>
-
-      {/* Summary Section */}
-      <div className="summary-section">
-        <h2>📈 Summary</h2>
-        <ul className="summary-list">
-          <li>
-            <strong>Data Quality:</strong> {stats.analyzed} out of {stats.totalOpps} opportunities have been
-            AI-analyzed
-          </li>
-          <li>
-            <strong>Most Common Source:</strong> {Object.entries(stats.bySource).sort((a, b) => b[1] - a[1])[0]?.[0]}
-          </li>
-          <li>
-            <strong>Average Relevance:</strong> {stats.avgRelevance}% - shows overall opportunity quality
-          </li>
-          <li>
-            <strong>Priority Focus:</strong> {stats.byPriority.High} high-priority opportunities identified
-          </li>
-          <li>
-            <strong>Geographic Coverage:</strong> Opportunities covering {Object.keys(stats.byRegion).length} regions
-          </li>
-        </ul>
-      </div>
-
-      <div className="action-section">
-        <p>💡 Tip: Analyze more opportunities in the Analyze page to improve statistics accuracy</p>
+      <div className="kpi-grid">
+        {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: 120, borderRadius: 12 }} />)}
       </div>
     </div>
   );
-};
 
-function getSourceColor(source) {
-  const colors = {
-    Devex: '#3498db',
-    Impactpool: '#2ecc71',
-    UNDP: '#e74c3c',
-    'World Bank': '#f39c12',
-    DevelopmentAid: '#9b59b6',
-    'Mock Data': '#95a5a6',
-  };
-  return colors[source] || '#34495e';
+  if (!stats) return (
+    <div className="stats-page">
+      <div className="page-header">
+        <h1 className="page-title"><FaChartBar /> Analytics Dashboard</h1>
+        <p className="page-subtitle">No data yet — scrape opportunities first.</p>
+      </div>
+    </div>
+  );
+
+  const regionEntries  = Object.entries(stats.byRegion).sort((a, b) => b[1] - a[1]);
+  const deadlineEntries = Object.entries(stats.byDeadline).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+  const total = opportunities.length;
+  const regionMax = Math.max(...regionEntries.map(r => r[1]), 1);
+  const deadlineMax = Math.max(...deadlineEntries.map(d => d[1]), 1);
+
+  return (
+    <div className="stats-page">
+      <div className="page-header">
+        <h1 className="page-title"><FaChartBar /> Analytics Dashboard</h1>
+        <p className="page-subtitle">Real-time insights from your opportunities database</p>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-grid">
+        <KpiCard icon={<FaDatabase />} label="Total" value={total} sub="opportunities" color="accent" />
+        <KpiCard icon={<FaRobot />} label="Analyzed" value={stats.analyzed}
+          sub={`${total ? Math.round((stats.analyzed / total) * 100) : 0}% of total`} color="success"
+          progress={total ? stats.analyzed / total : 0}
+        />
+        <KpiCard icon={<FaDatabase />} label="Unanalyzed" value={total - stats.analyzed}
+          sub="pending AI analysis" color="warning" />
+        <KpiCard icon={<FaStar />} label="Avg Relevance" value={`${stats.avgRelevance}%`}
+          sub="from AI analysis" color="info" />
+      </div>
+
+      {/* Charts row 1 */}
+      <div className="charts-row">
+        <div className="chart-card">
+          <h2 className="chart-title">By Source</h2>
+          <div className="bar-list">
+            {Object.entries(stats.bySource).map(([src, count]) => (
+              <div key={src} className="bar-item">
+                <span className="bar-label">{src}</span>
+                <div className="bar-track">
+                  <div className="bar-fill" style={{ width: `${(count / stats.sourceMax) * 100}%`, background: SOURCE_COLORS[src] || '#6B7280' }} />
+                </div>
+                <span className="bar-val">{count}</span>
+              </div>
+            ))}
+            {!Object.keys(stats.bySource).length && <p className="text-muted text-sm">No source data</p>}
+          </div>
+        </div>
+
+        <div className="chart-card">
+          <h2 className="chart-title">Priority Distribution</h2>
+          <div className="priority-vis">
+            {[
+              { key: 'High',   color: 'var(--danger)',  bg: 'var(--danger-light)' },
+              { key: 'Medium', color: 'var(--warning)', bg: 'var(--warning-light)' },
+              { key: 'Low',    color: 'var(--info)',    bg: 'var(--info-light)' },
+            ].map(({ key, color, bg }) => (
+              <div key={key} className="priority-row" style={{ '--p-color': color, '--p-bg': bg }}>
+                <div className="priority-pill">{key}</div>
+                <div className="priority-bar-track">
+                  <div className="priority-bar-fill"
+                    style={{ width: `${total ? ((stats.byPriority[key] || 0) / total) * 100 : 0}%` }} />
+                </div>
+                <span className="priority-count">{stats.byPriority[key] || 0}</span>
+                <span className="priority-pct">
+                  {total ? ((stats.byPriority[key] || 0) / total * 100).toFixed(1) : 0}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Charts row 2 */}
+      <div className="charts-row">
+        <div className="chart-card">
+          <h2 className="chart-title">By Region</h2>
+          {regionEntries.length ? (
+            <div className="bar-list">
+              {regionEntries.map(([region, count]) => (
+                <div key={region} className="bar-item">
+                  <span className="bar-label">{region}</span>
+                  <div className="bar-track">
+                    <div className="bar-fill" style={{ width: `${(count / regionMax) * 100}%`, background: 'var(--accent)' }} />
+                  </div>
+                  <span className="bar-val">{count}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-muted text-sm">No region data — analyze opportunities first.</p>}
+        </div>
+
+        <div className="chart-card">
+          <h2 className="chart-title">Deadline Timeline</h2>
+          {deadlineEntries.length ? (
+            <div className="bar-list">
+              {deadlineEntries.map(([month, count]) => (
+                <div key={month} className="bar-item">
+                  <span className="bar-label">{month}</span>
+                  <div className="bar-track">
+                    <div className="bar-fill" style={{ width: `${(count / deadlineMax) * 100}%`, background: 'var(--primary)' }} />
+                  </div>
+                  <span className="bar-val">{count}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-muted text-sm">No deadline data available.</p>}
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div className="chart-card">
+        <h2 className="chart-title">Top 10 Required Skills</h2>
+        {stats.topSkills.length ? (
+          <div className="skills-grid">
+            {stats.topSkills.map(([skill, count]) => (
+              <div key={skill} className="skill-pill">
+                <span className="skill-name">{skill}</span>
+                <span className="skill-count">{count}</span>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-muted text-sm">No skill data — analyze opportunities first.</p>}
+      </div>
+
+      {/* Summary */}
+      <div className="stats-summary">
+        <h2 className="chart-title">Summary</h2>
+        <ul className="summary-list">
+          <li><strong>Data quality:</strong> {stats.analyzed} / {total} opportunities AI-analyzed</li>
+          <li><strong>Top source:</strong> {Object.entries(stats.bySource).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? '—'}</li>
+          <li><strong>Average relevance:</strong> {stats.avgRelevance}% — measures overall opportunity fit</li>
+          <li><strong>High-priority:</strong> {stats.byPriority.High || 0} opportunities flagged</li>
+          <li><strong>Geographic spread:</strong> {Object.keys(stats.byRegion).length} regions covered</li>
+        </ul>
+      </div>
+    </div>
+  );
 }
 
-export default Stats;
+function KpiCard({ icon, label, value, sub, color, progress }) {
+  return (
+    <div className={`kpi-card kpi-${color}`}>
+      <div className="kpi-icon" aria-hidden="true">{icon}</div>
+      <div className="kpi-body">
+        <p className="kpi-label">{label}</p>
+        <p className="kpi-value">{value}</p>
+        {progress !== undefined && (
+          <div className="kpi-progress">
+            <div className="kpi-fill" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+        )}
+        <p className="kpi-sub">{sub}</p>
+      </div>
+    </div>
+  );
+}

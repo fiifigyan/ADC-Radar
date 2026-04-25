@@ -1,647 +1,299 @@
-import React, { useState, useEffect } from 'react';
-import { CheckIcon, LoadingIcon, DownloadIcon, SuccessIcon, ErrorIcon } from '../utils/icons';
+import { useEffect, useState } from 'react';
+import { FaCheck, FaDownload, FaSpinner, FaSyncAlt, FaTimes, FaTrash } from 'react-icons/fa';
+import { useNotification } from '../contexts/NotificationContext';
+import { createSchedule, deleteSchedule, getScrapeStats, getSchedules, scrapeAll, scrapeSource, syncNotion, updateSchedule } from '../utils/api';
 import '../styles/Scrape.css';
 
-const Scrape = () => {
-  const [loading, setLoading] = useState(false);
-  const [selectedSources, setSelectedSources] = useState([
-    'Devex',
-    'Impactpool',
-    'UNDP',
-    'World Bank',
-    'DevelopmentAid',
-  ]);
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [schedules, setSchedules] = useState([]);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({
-    name: '',
-    type: 'daily',
-    time: '10:00',
-    day_of_week: 0,
-    interval_hours: 24,
-    sources: [],
-    enabled: true,
-  });
+const SOURCES = [
+  { value: 'Devex',          color: '#EC4899' },
+  { value: 'Impactpool',     color: '#6366F1' },
+  { value: 'UNDP',           color: '#06B6D4' },
+  { value: 'World Bank',     color: '#3B82F6' },
+  { value: 'DevelopmentAid', color: '#8B5CF6' },
+];
 
-  const sources = [
-    { value: 'Devex', label: 'Devex', colorClass: 'devex' },
-    { value: 'Impactpool', label: 'Impactpool', colorClass: 'impactpool' },
-    { value: 'UNDP', label: 'UNDP', colorClass: 'undp' },
-    { value: 'World Bank', label: 'World Bank', colorClass: 'world-bank' },
-    { value: 'DevelopmentAid', label: 'Development Aid', colorClass: 'development-aid' },
-  ];
+const EMPTY_SCHEDULE = { name: '', type: 'daily', time: '10:00', day_of_week: 0, interval_hours: 24, sources: [], enabled: true };
+
+export default function Scrape() {
+  const { success, error: notifyError, info } = useNotification();
+  const [loading, setLoading]   = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [selected, setSelected] = useState(SOURCES.map(s => s.value));
+  const [results, setResults]   = useState(null);
+  const [stats, setStats]       = useState(null);
+  const [schedules, setSchedules] = useState({});
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm]         = useState(EMPTY_SCHEDULE);
 
   useEffect(() => {
-    fetchStats();
+    loadStats();
     loadSchedules();
   }, []);
 
-  const loadSchedules = async () => {
+  const loadStats      = () => getScrapeStats().then(setStats).catch(() => {});
+  const loadSchedules  = () => getSchedules().then(d => setSchedules(d.schedules || {})).catch(() => {});
+
+  const toggleSource = (src) =>
+    setSelected(s => s.includes(src) ? s.filter(x => x !== src) : [...s, src]);
+
+  const handleScrapeAll = async () => {
+    setLoading(true); setResults(null);
     try {
-      const response = await fetch('http://localhost:5000/api/schedules');
-      if (response.ok) {
-        const data = await response.json();
-        setSchedules(data.schedules || {});
-      }
-    } catch (err) {
-      console.error('Error loading schedules:', err);
-    }
-  };
-
-  const handleSourceChange = (source) => {
-    if (selectedSources.includes(source)) {
-      setSelectedSources(selectedSources.filter((s) => s !== source));
-    } else {
-      setSelectedSources([...selectedSources, source]);
-    }
-  };
-
-  const scrapeAll = async () => {
-    setLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await fetch('http://localhost:5000/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) throw new Error('Failed to initiate scraping');
-
-      const data = await response.json();
+      const data = await scrapeAll();
       setResults(data);
-      await fetchStats();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      await loadStats();
+      success(`Scraped ${data.summary?.total_saved ?? 0} opportunities`);
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const scrapeSource = async (source) => {
-    setLoading(true);
-    setError(null);
-    setResults(null);
-
+  const handleScrapeOne = async () => {
+    if (selected.length !== 1) return;
+    setLoading(true); setResults(null);
     try {
-      const encodedSource = encodeURIComponent(source);
-      const response = await fetch(`http://localhost:5000/api/scrape/${encodedSource}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) throw new Error(`Failed to scrape from ${source}`);
-
-      const data = await response.json();
-      
-      // Transform the single source response to match the multi-source format
-      const results = {
-        timestamp: data.timestamp,
-        sources: {
-          [data.source]: {
-            scraped: data.scraped,
-            saved: data.saved,
-            failed: data.failed,
-            status: data.status,
-            error: data.error || null,
-          }
-        },
-        summary: {
-          total_scraped: data.scraped,
-          total_saved: data.saved,
-          total_failed: data.failed,
-        }
-      };
-      
-      setResults(results);
-      await fetchStats();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      const data = await scrapeSource(selected[0]);
+      setResults({ timestamp: data.timestamp, sources: { [data.source]: data }, summary: { total_scraped: data.scraped, total_saved: data.saved, total_failed: data.failed } });
+      await loadStats();
+      success(`Scraped ${data.saved ?? 0} from ${selected[0]}`);
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const fetchStats = async () => {
+  const handleSync = async () => {
+    setSyncLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/scrape/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err);
-    }
+      const data = await syncNotion();
+      success(`Synced ${data.synced?.length ?? 0} opportunities to Notion`);
+      if (data.failed?.length) info(`${data.failed.length} failed to sync`);
+    } catch (e) { notifyError(e.message || 'Notion not configured'); }
+    finally { setSyncLoading(false); }
   };
 
-  const createSchedule = async () => {
-    if (!scheduleForm.name.trim()) {
-      alert('Please enter a schedule name');
-      return;
-    }
-
+  const handleCreateSchedule = async () => {
+    if (!form.name.trim()) { notifyError('Schedule name required'); return; }
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scheduleForm),
-      });
-
-      if (response.ok) {
-        setScheduleForm({
-          name: '',
-          type: 'daily',
-          time: '10:00',
-          day_of_week: 0,
-          interval_hours: 24,
-          sources: [],
-          enabled: true,
-        });
-        setShowScheduleForm(false);
-        await loadSchedules();
-        alert('Success: Schedule created successfully!');
-      } else {
-        const data = await response.json();
-        alert(`Error: ${data.message || 'Failed to create schedule'}`);
-      }
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+      await createSchedule(form);
+      success(`Schedule "${form.name}" created`);
+      setForm(EMPTY_SCHEDULE);
+      setShowForm(false);
+      await loadSchedules();
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const deleteSchedule = async (name) => {
-    if (!window.confirm(`Are you sure you want to delete the "${name}" schedule?`)) {
-      return;
-    }
-
+  const handleDeleteSchedule = async (name) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/schedules/${name}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        await loadSchedules();
-        alert('Success: Schedule deleted successfully!');
-      } else {
-        alert('Failed to delete schedule');
-      }
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+      await deleteSchedule(name);
+      success(`Schedule "${name}" deleted`);
+      await loadSchedules();
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const updateScheduleEnabled = async (name, enabled) => {
+  const handleToggleSchedule = async (name, active) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/schedules/${name}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !enabled }),
-      });
-
-      if (response.ok) {
-        await loadSchedules();
-      }
-    } catch (err) {
-      console.error('Error updating schedule:', err);
-    }
+      await updateSchedule(name, { enabled: !active });
+      await loadSchedules();
+    } catch (e) { notifyError(e.message); }
   };
 
-  const syncToNotion = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('http://localhost:5000/api/notion/sync', {
-        method: 'POST',
-      });
-
-      if (!response.ok) throw new Error('Failed to sync to Notion');
-
-      const data = await response.json();
-      alert(`Success: Synced ${data.synced.length} opportunities to Notion`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const allSelected  = selected.length === SOURCES.length;
+  const noneSelected = selected.length === 0;
 
   return (
     <div className="scrape-page">
       <div className="page-header">
-        <h1>Web Scraper</h1>
-        <p className="page-subtitle">Automatically fetch job opportunities from multiple sources</p>
+        <h1 className="page-title"><FaDownload /> Web Scraper</h1>
+        <p className="page-subtitle">Fetch consultancy opportunities from multiple platforms</p>
       </div>
 
-      {error && (
-        <div className="error-message">
-          <ErrorIcon size="1.2em" style={{ marginRight: '0.5rem' }} />
-          {error}
-        </div>
-      )}
-
-      {/* Statistics Section */}
+      {/* Stats */}
       {stats && (
-        <div className="stats-section">
-          <div className="section-header">
-            <h2>Current Statistics</h2>
-            <p className="section-subtitle">Overview of scraped opportunities</p>
+        <div className="scrape-stats">
+          <div className="stat-chip">
+            <span>Total in DB</span>
+            <strong>{stats.total_opportunities}</strong>
           </div>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <span className="stat-label">Total Opportunities</span>
-              <span className="stat-value">{stats.total_opportunities}</span>
+          {Object.entries(stats.by_source || {}).map(([src, cnt]) => (
+            <div key={src} className="stat-chip">
+              <span>{src}</span>
+              <strong>{cnt}</strong>
             </div>
-            {stats.by_source && Object.entries(stats.by_source).map(([source, count]) => (
-              <div key={source} className="stat-card">
-                <span className="stat-label">{source}</span>
-                <span className="stat-value">{count}</span>
-              </div>
-            ))}
-          </div>
+          ))}
           {stats.last_scrape && (
-            <p className="last-scrape">
-              Last updated: {new Date(stats.last_scrape).toLocaleString()}
-            </p>
+            <div className="stat-chip stat-chip--muted">
+              <span>Last scrape</span>
+              <strong>{new Date(stats.last_scrape).toLocaleString()}</strong>
+            </div>
           )}
         </div>
       )}
 
-      {/* Source Selection */}
-      <div className="sources-section">
-        <div className="section-header">
-          <h2>Select Sources</h2>
-          <p className="section-subtitle">Choose which platforms to scrape from</p>
+      {/* Source selection */}
+      <div className="section">
+        <div className="section-header-row">
+          <h2 className="section-title">Select Sources</h2>
+          <div className="select-actions">
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelected(SOURCES.map(s => s.value))} disabled={allSelected}>Select All</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelected([])} disabled={noneSelected}>Clear</button>
+          </div>
         </div>
-        <div className="sources-list">
-          {sources.map((source) => (
-            <label key={source.value} className="source-checkbox">
-              <input
-                type="checkbox"
-                checked={selectedSources.includes(source.value)}
-                onChange={() => handleSourceChange(source.value)}
-                disabled={loading}
-              />
-              <span style={{ borderColor: source.color }}>
-                {source.label}
-              </span>
+        <div className="source-grid">
+          {SOURCES.map(src => (
+            <label key={src.value} className={`source-card${selected.includes(src.value) ? ' source-card--on' : ''}`}
+              style={{ '--src-color': src.color }}>
+              <input type="checkbox" checked={selected.includes(src.value)} onChange={() => toggleSource(src.value)} />
+              <div className="source-dot" />
+              <span>{src.value}</span>
+              {selected.includes(src.value) && <FaCheck className="source-check" />}
             </label>
           ))}
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="actions-section">
-        <button
-          className="btn btn-primary"
-          onClick={scrapeAll}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <LoadingIcon size="1em" />
-              Scraping...
-            </>
-          ) : (
-            <>
-              <DownloadIcon size="1em" />
-              Scrape All Sources
-            </>
-          )}
+      {/* Actions */}
+      <div className="scrape-actions">
+        <button className="btn btn-primary" onClick={handleScrapeAll} disabled={loading || noneSelected}>
+          {loading ? <><FaSpinner className="spin" /> Scraping…</> : <><FaDownload /> Scrape All Sources</>}
         </button>
-
-        {selectedSources.length === 1 && (
-          <button
-            className="btn btn-secondary"
-            onClick={() => scrapeSource(selectedSources[0])}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <LoadingIcon size="1em" />
-                Scraping...
-              </>
-            ) : (
-              <>
-                <DownloadIcon size="1em" />
-                Scrape {selectedSources[0]}
-              </>
-            )}
+        {selected.length === 1 && (
+          <button className="btn btn-secondary" onClick={handleScrapeOne} disabled={loading}>
+            {loading ? <><FaSpinner className="spin" /> Scraping…</> : <><FaDownload /> Scrape {selected[0]}</>}
           </button>
         )}
-
-        <button
-          className="btn btn-success"
-          onClick={syncToNotion}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <LoadingIcon size="1em" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <CheckIcon size="1em" />
-              Sync to Notion
-            </>
-          )}
+        <button className="btn btn-ghost" onClick={handleSync} disabled={syncLoading}>
+          {syncLoading ? <><FaSpinner className="spin" /> Syncing…</> : <><FaSyncAlt /> Sync to Notion</>}
         </button>
       </div>
 
       {/* Results */}
       {results && (
-        <div className="results-section">
-          <div className="section-header">
-            <h2>Scraping Results</h2>
-            <p className="section-subtitle">Summary of the most recent scrape</p>
+        <div className="section">
+          <h2 className="section-title">Scrape Results</h2>
+          <div className="results-summary">
+            <div className="res-chip"><span>Scraped</span><strong>{results.summary?.total_scraped ?? 0}</strong></div>
+            <div className="res-chip res-chip--success"><span>Saved</span><strong>{results.summary?.total_saved ?? 0}</strong></div>
+            <div className="res-chip res-chip--danger"><span>Failed</span><strong>{results.summary?.total_failed ?? 0}</strong></div>
           </div>
-          
-          <div className="summary">
-            <div className="summary-item">
-              <span>Total Scraped</span>
-              <strong>{results.summary.total_scraped}</strong>
-            </div>
-            <div className="summary-item">
-              <span>Successfully Saved</span>
-              <strong>{results.summary.total_saved}</strong>
-            </div>
-            <div className="summary-item">
-              <span>Failed</span>
-              <strong className="error">{results.summary.total_failed}</strong>
-            </div>
-          </div>
-
-          <div className="results-details">
-            <h3>Details by Source</h3>
-            <div className="sources-results">
-              {Object.entries(results.sources || {}).map(([source, sourceData]) => (
-                <div key={source} className="source-result">
-                  <h4>{source}</h4>
-                  <ul>
-                    <li>Scraped: <strong>{sourceData.scraped || 0}</strong></li>
-                    <li>Saved: <strong>{sourceData.saved || 0}</strong></li>
-                    <li>Failed: <strong>{sourceData.failed || 0}</strong></li>
-                    {sourceData.error && (
-                      <li className="error">Error: {sourceData.error}</li>
-                    )}
-                  </ul>
-                </div>
-              ))}
-            </div>
+          <div className="results-detail">
+            {Object.entries(results.sources || {}).map(([src, d]) => (
+              <div key={src} className={`result-row${d.status === 'failed' ? ' result-row--error' : ''}`}>
+                <span className="result-src">{src}</span>
+                <span>Scraped: <strong>{d.scraped ?? 0}</strong></span>
+                <span>Saved: <strong>{d.saved ?? 0}</strong></span>
+                {d.error && <span className="text-danger">{d.error}</span>}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Schedule Management Section */}
-      <div className="schedule-section">
-        <div className="section-header">
-          <h2>Automated Scheduling</h2>
-          <p className="section-subtitle">Create and manage recurring scrape tasks</p>
-        </div>
-        <div className="schedule-header">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowScheduleForm(!showScheduleForm)}
-            disabled={loading}
-          >
-            {showScheduleForm ? 'Cancel' : 'Create New Schedule'}
+      {/* Schedules */}
+      <div className="section">
+        <div className="section-header-row">
+          <h2 className="section-title">Automated Scheduling</h2>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowForm(v => !v)}>
+            {showForm ? <><FaTimes /> Cancel</> : '+ New Schedule'}
           </button>
         </div>
 
-        {showScheduleForm && (
+        {showForm && (
           <div className="schedule-form">
-            <div className="form-group">
-              <label>Schedule Name</label>
-              <input
-                type="text"
-                placeholder="e.g., Daily Morning Scrape"
-                value={scheduleForm.name}
-                onChange={(e) =>
-                  setScheduleForm({ ...scheduleForm, name: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="form-row">
+            <div className="form-row form-row-2">
               <div className="form-group">
-                <label>Schedule Type</label>
-                <select
-                  value={scheduleForm.type}
-                  onChange={(e) =>
-                    setScheduleForm({ ...scheduleForm, type: e.target.value })
-                  }
-                >
+                <label className="form-label">Schedule Name</label>
+                <input className="form-control" placeholder="e.g. Daily Morning" value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Type</label>
+                <select className="form-control" value={form.type}
+                  onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
-                  <option value="interval">Interval (Hours)</option>
+                  <option value="interval">Interval (hours)</option>
                 </select>
               </div>
+            </div>
 
-              {scheduleForm.type !== 'interval' && (
+            <div className="form-row form-row-2">
+              {form.type !== 'interval' && (
                 <div className="form-group">
-                  <label>Time</label>
-                  <input
-                    type="time"
-                    value={scheduleForm.time}
-                    onChange={(e) =>
-                      setScheduleForm({ ...scheduleForm, time: e.target.value })
-                    }
-                  />
+                  <label className="form-label">Time</label>
+                  <input type="time" className="form-control" value={form.time}
+                    onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
                 </div>
               )}
-
-              {scheduleForm.type === 'weekly' && (
+              {form.type === 'weekly' && (
                 <div className="form-group">
-                  <label>Day of Week</label>
-                  <select
-                    value={scheduleForm.day_of_week}
-                    onChange={(e) =>
-                      setScheduleForm({
-                        ...scheduleForm,
-                        day_of_week: parseInt(e.target.value),
-                      })
-                    }
-                  >
-                    <option value={0}>Monday</option>
-                    <option value={1}>Tuesday</option>
-                    <option value={2}>Wednesday</option>
-                    <option value={3}>Thursday</option>
-                    <option value={4}>Friday</option>
-                    <option value={5}>Saturday</option>
-                    <option value={6}>Sunday</option>
+                  <label className="form-label">Day</label>
+                  <select className="form-control" value={form.day_of_week}
+                    onChange={e => setForm(f => ({ ...f, day_of_week: +e.target.value }))}>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d, i) =>
+                      <option key={d} value={i}>{d}</option>)}
                   </select>
                 </div>
               )}
-
-              {scheduleForm.type === 'interval' && (
+              {form.type === 'interval' && (
                 <div className="form-group">
-                  <label>Interval (Hours)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="720"
-                    value={scheduleForm.interval_hours}
-                    onChange={(e) =>
-                      setScheduleForm({
-                        ...scheduleForm,
-                        interval_hours: parseInt(e.target.value),
-                      })
-                    }
-                  />
+                  <label className="form-label">Interval (hours)</label>
+                  <input type="number" className="form-control" min={1} max={720} value={form.interval_hours}
+                    onChange={e => setForm(f => ({ ...f, interval_hours: +e.target.value }))} />
                 </div>
               )}
             </div>
 
-            <div className="form-group">
-              <label>Sources to Scrape (Optional - leave empty for all)</label>
-              <div className="sources-checkboxes">
-                {sources.map((source) => (
-                  <label key={source.value} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={scheduleForm.sources.includes(source.value)}
-                      onChange={(e) => {
-                        const newSources = e.target.checked
-                          ? [...scheduleForm.sources, source.value]
-                          : scheduleForm.sources.filter((s) => s !== source.value);
-                        setScheduleForm({ ...scheduleForm, sources: newSources });
-                      }}
-                    />
-                    {source.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <button
-              className="btn btn-success"
-              onClick={createSchedule}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <LoadingIcon size="1em" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <CheckIcon size="1em" />
-                  Create Schedule
-                </>
-              )}
+            <button className="btn btn-primary btn-sm" onClick={handleCreateSchedule} disabled={loading}>
+              {loading ? <><FaSpinner className="spin" /> Creating…</> : 'Create Schedule'}
             </button>
           </div>
         )}
 
-        {Object.keys(schedules).length > 0 && (
-          <div className="schedules-list">
-            <h3>Your Schedules</h3>
-            <div className="schedule-items">
-              {Object.entries(schedules).map(([name, schedule]) => (
-                <div key={name} className="schedule-item">
-                  <div className="schedule-info">
-                    <h4>{name}</h4>
-                    <p>
-                      Type: <strong>{schedule.type.toUpperCase()}</strong>
-                      {schedule.type !== 'interval' && ` @ ${schedule.time}`}
-                      {schedule.type === 'interval' && ` - Every ${schedule.interval_hours} hours`}
-                    </p>
-                    {schedule.sources && schedule.sources.length > 0 && (
-                      <p>Sources: <strong>{schedule.sources.join(', ')}</strong></p>
-                    )}
-                    {schedule.next_run && (
-                      <p>Next Run: <strong>{new Date(schedule.next_run).toLocaleString()}</strong></p>
-                    )}
-                  </div>
-                  <div className="schedule-actions">
-                    <button
-                      className={`btn-small ${schedule.active ? 'btn-active' : 'btn-inactive'}`}
-                      onClick={() => updateScheduleEnabled(name, schedule.active)}
-                      disabled={loading}
-                    >
-                      {schedule.active ? (
-                        <>
-                          <CheckIcon size="0.9em" />
-                          Active
-                        </>
-                      ) : (
-                        <>
-                          <ErrorIcon size="0.9em" />
-                          Inactive
-                        </>
-                      )}
-                    </button>
-                    <button
-                      className="btn-small btn-delete"
-                      onClick={() => deleteSchedule(name)}
-                      disabled={loading}
-                    >
-                      Delete
-                    </button>
-                  </div>
+        {Object.keys(schedules).length > 0 ? (
+          <div className="schedule-list">
+            {Object.entries(schedules).map(([name, sch]) => (
+              <div key={name} className="schedule-item">
+                <div className="schedule-info">
+                  <strong>{name}</strong>
+                  <span className="text-muted text-sm">
+                    {sch.type === 'interval'
+                      ? `Every ${sch.interval_hours}h`
+                      : `${sch.type} @ ${sch.time}`}
+                  </span>
+                  {sch.next_run && (
+                    <span className="text-muted text-xs">Next: {new Date(sch.next_run).toLocaleString()}</span>
+                  )}
                 </div>
-              ))}
-            </div>
+                <div className="schedule-actions">
+                  <button
+                    className={`btn btn-sm ${sch.active ? 'btn-success' : 'btn-ghost'}`}
+                    onClick={() => handleToggleSchedule(name, sch.active)}
+                  >
+                    {sch.active ? <><FaCheck /> Active</> : 'Inactive'}
+                  </button>
+                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteSchedule(name)} aria-label="Delete">
+                    <FaTrash />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
+        ) : !showForm && (
+          <p className="text-muted text-sm" style={{ marginTop: '0.75rem' }}>No schedules yet. Create one to automate scraping.</p>
         )}
       </div>
 
-      <div className="info-box">
-        <div className="info-header">
-          <h3>Getting Started</h3>
-          <p className="info-subtitle">Follow these steps to start scraping opportunities</p>
-        </div>
-        <ol className="steps-list">
-          <li className="step-item">
-            <div className="step-number">1</div>
-            <div className="step-content">
-              <h4>Select Your Sources</h4>
-              <p>Choose which opportunity sources you want to scrape from. You can select all or specific ones.</p>
-            </div>
-          </li>
-          <li className="step-item">
-            <div className="step-number">2</div>
-            <div className="step-content">
-              <h4>Initiate Scraping</h4>
-              <p>Click "Scrape All Sources" to fetch opportunities. The process runs in the background.</p>
-            </div>
-          </li>
-          <li className="step-item">
-            <div className="step-number">3</div>
-            <div className="step-content">
-              <h4>Auto-Save to Database</h4>
-              <p>All scraped opportunities are automatically saved to your local database.</p>
-            </div>
-          </li>
-          <li className="step-item">
-            <div className="step-number">4</div>
-            <div className="step-content">
-              <h4>Sync to Notion</h4>
-              <p>Upload your opportunities to Notion for centralized management and sharing.</p>
-            </div>
-          </li>
-          <li className="step-item">
-            <div className="step-number">5</div>
-            <div className="step-content">
-              <h4>View & Analyze</h4>
-              <p>Head to the Dashboard to view, filter, and analyze all scraped opportunities.</p>
-            </div>
-          </li>
+      {/* Instructions */}
+      <div className="info-section">
+        <h3>How to use</h3>
+        <ol className="steps">
+          {['Select one or more source platforms', 'Click "Scrape All Sources" to fetch opportunities', 'Results are saved automatically to your database', 'Sync to Notion for external sharing', 'Use Automated Scheduling for hands-free operation'].map((s, i) => (
+            <li key={i}><span className="step-num">{i + 1}</span>{s}</li>
+          ))}
         </ol>
       </div>
     </div>
   );
-};
-
-export default Scrape;
+}

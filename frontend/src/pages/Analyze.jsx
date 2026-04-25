@@ -1,366 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import { RobotIcon, SuccessIcon, ErrorIcon, CheckIcon, LoadingIcon } from '../utils/icons';
+import { useEffect, useState } from 'react';
+import { FaCheckCircle, FaRobot, FaSpinner, FaTimesCircle } from 'react-icons/fa';
+import { PriorityBadge, SourceBadge } from '../components/Badge';
+import { useNotification } from '../contexts/NotificationContext';
+import { analyzeAll, analyzeBySource, analyzeSingle, getAiStatus, getOpportunities } from '../utils/api';
 import '../styles/Analyze.css';
 
-const Analyze = () => {
+const SOURCES = ['Devex','Impactpool','UNDP','World Bank','DevelopmentAid'];
+
+export default function Analyze() {
+  const { success, error: notifyError, info } = useNotification();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [aiStatus, setAiStatus] = useState(null);
-  const [filterAnalyzed, setFilterAnalyzed] = useState('unanalyzed');
+  const [tab, setTab] = useState('unanalyzed');
   const [selectedSource, setSelectedSource] = useState('');
-
-  const sources = [
-    'Devex',
-    'Impactpool',
-    'UNDP',
-    'World Bank',
-    'DevelopmentAid',
-  ];
+  const [analyzingId, setAnalyzingId] = useState(null);
 
   useEffect(() => {
-    loadOpportunities();
-    loadAiStatus();
+    loadAll();
+    getAiStatus().then(setAiStatus).catch(() => {});
   }, []);
 
-  const loadOpportunities = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/opportunities');
-      if (response.ok) {
-        const data = await response.json();
-        setOpportunities(data);
-      }
-    } catch (err) {
-      console.error('Error loading opportunities:', err);
-    }
-  };
+  const loadAll = () =>
+    getOpportunities().then(setOpportunities).catch(() => {});
 
-  const loadAiStatus = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/ai/status');
-      if (response.ok) {
-        const data = await response.json();
-        setAiStatus(data);
-      }
-    } catch (err) {
-      console.error('Error loading AI status:', err);
-    }
-  };
-
-  const analyzeAll = async () => {
+  const handleAnalyzeAll = async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      const response = await fetch('http://localhost:5000/api/analyze/batch/all', {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Analysis Complete: ${data.total_analyzed} opportunities analyzed!`);
-        await loadOpportunities();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to analyze opportunities');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      const data = await analyzeAll();
+      success(`Analyzed ${data.total_analyzed} opportunities`);
+      await loadAll();
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const analyzeBySource = async () => {
-    if (!selectedSource) {
-      alert('Please select a source');
-      return;
-    }
-
+  const handleAnalyzeBySource = async () => {
+    if (!selectedSource) { info('Select a source first'); return; }
     setLoading(true);
-    setError(null);
-
     try {
-      const response = await fetch('http://localhost:5000/api/analyze/batch/by-source', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: selectedSource }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Analysis Complete: ${data.total_analyzed} opportunities analyzed from ${selectedSource}!`);
-        await loadOpportunities();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to analyze opportunities');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      const data = await analyzeBySource(selectedSource);
+      success(`Analyzed ${data.total_analyzed} from ${selectedSource}`);
+      await loadAll();
+    } catch (e) { notifyError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const analyzeSingle = async (opportunityId) => {
-    setLoading(true);
-    setError(null);
-
+  const handleSingle = async (id) => {
+    setAnalyzingId(id);
     try {
-      const response = await fetch(`http://localhost:5000/api/analyze/${opportunityId}`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        alert('Analysis Complete: Opportunity analyzed successfully!');
-        await loadOpportunities();
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to analyze opportunity');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      await analyzeSingle(id);
+      success('Analysis complete');
+      await loadAll();
+    } catch (e) { notifyError(e.message); }
+    finally { setAnalyzingId(null); }
   };
 
-  // Filter opportunities
-  const filteredOpportunities = opportunities.filter((opp) => {
-    if (filterAnalyzed === 'analyzed') {
-      return opp.processed_at !== null;
-    } else {
-      return opp.processed_at === null;
-    }
-  });
+  const shown = opportunities.filter(o =>
+    tab === 'analyzed' ? !!o.processed_at : !o.processed_at
+  );
+  const analyzed   = opportunities.filter(o => o.processed_at).length;
+  const unanalyzed = opportunities.length - analyzed;
 
-  const getRelevanceColor = (score) => {
-    if (score >= 75) return '#2ecc71'; // Green
-    if (score >= 50) return '#f39c12'; // Orange
-    return '#e74c3c'; // Red
-  };
-
-  const getPriorityBadgeColor = (priority) => {
-    switch (priority) {
-      case 'High': return '#e74c3c';
-      case 'Medium': return '#f39c12';
-      case 'Low': return '#95a5a6';
-      default: return '#34495e';
-    }
-  };
+  const relevColor = (s) => s >= 75 ? 'var(--success)' : s >= 50 ? 'var(--warning)' : 'var(--danger)';
 
   return (
     <div className="analyze-page">
-      <h1>
-        <RobotIcon size="1.5em" style={{ marginRight: '0.75rem', verticalAlign: 'middle' }} />
-        AI Analysis
-      </h1>
-      <p className="subtitle">Analyze opportunities with AI for relevance and insights</p>
-
-      {error && (
-        <div className="error-message">
-          <ErrorIcon size="1.2em" style={{ marginRight: '0.5rem' }} />
-          {error}
-        </div>
-      )}
-
-      {/* AI Status Section */}
-      {aiStatus && (
-        <div className={`ai-status ${aiStatus.available ? 'available' : 'unavailable'}`}>
-          <h3>
-            {aiStatus.available ? (
-              <CheckIcon color="var(--success)" size="1.25em" style={{ marginRight: '0.5rem' }} />
-            ) : (
-              <ErrorIcon color="var(--danger)" size="1.25em" style={{ marginRight: '0.5rem' }} />
-            )}
-            AI Status
-          </h3>
-          <p>{aiStatus.message}</p>
-          {!aiStatus.available && (
-            <p className="warning">
-              OpenAI API key not configured. Set OPENAI_API_KEY environment variable to enable AI analysis.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Analysis Controls */}
-      {aiStatus?.available && (
-        <div className="analysis-controls">
-          <div className="control-group">
-            <button
-              className="btn btn-primary"
-              onClick={analyzeAll}
-              disabled={loading || filteredOpportunities.length === 0}
-            >
-              {loading ? '⏳ Analyzing...' : '🚀 Analyze All Unanalyzed'}
-            </button>
-          </div>
-
-          <div className="control-group">
-            <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">Select source to analyze...</option>
-              {sources.map((source) => (
-                <option key={source} value={source}>
-                  {source}
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn btn-secondary"
-              onClick={analyzeBySource}
-              disabled={loading || !selectedSource}
-            >
-              {loading ? '⏳ Analyzing...' : '📥 Analyze Source'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Filter Controls */}
-      <div className="filter-controls">
-        <label>
-          <input
-            type="radio"
-            value="unanalyzed"
-            checked={filterAnalyzed === 'unanalyzed'}
-            onChange={(e) => setFilterAnalyzed(e.target.value)}
-          />
-          Unanalyzed ({opportunities.filter((o) => !o.processed_at).length})
-        </label>
-        <label>
-          <input
-            type="radio"
-            value="analyzed"
-            checked={filterAnalyzed === 'analyzed'}
-            onChange={(e) => setFilterAnalyzed(e.target.value)}
-          />
-          Analyzed ({opportunities.filter((o) => o.processed_at).length})
-        </label>
+      <div className="page-header">
+        <h1 className="page-title"><FaRobot /> AI Analysis</h1>
+        <p className="page-subtitle">Score and summarize opportunities using OpenAI</p>
       </div>
 
-      {/* Opportunities List */}
-      <div className="opportunities-grid">
-        {filteredOpportunities.length === 0 ? (
-          <div className="empty-state">
-            <p>
-              {filterAnalyzed === 'analyzed'
-                ? 'No analyzed opportunities yet'
-                : 'All opportunities have been analyzed!'}
-            </p>
+      {/* AI Status banner */}
+      {aiStatus && (
+        <div className={`ai-banner${aiStatus.available ? ' ai-banner--ok' : ' ai-banner--off'}`}>
+          {aiStatus.available
+            ? <><FaCheckCircle /> AI active &mdash; {aiStatus.model || 'GPT-3.5-turbo'}</>
+            : <><FaTimesCircle /> AI disabled &mdash; set <code>OPENAI_API_KEY</code> to enable</>}
+        </div>
+      )}
+
+      {/* Controls */}
+      {aiStatus?.available && (
+        <div className="analyze-controls">
+          <button className="btn btn-primary" onClick={handleAnalyzeAll} disabled={loading || unanalyzed === 0}>
+            {loading ? <><FaSpinner className="spin" /> Analyzing…</> : `Analyze All Unanalyzed (${unanalyzed})`}
+          </button>
+          <div className="analyze-source-group">
+            <select className="form-control" value={selectedSource} onChange={e => setSelectedSource(e.target.value)} disabled={loading}>
+              <option value="">Select source…</option>
+              {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button className="btn btn-secondary" onClick={handleAnalyzeBySource} disabled={loading || !selectedSource}>
+              Analyze Source
+            </button>
           </div>
-        ) : (
-          filteredOpportunities.map((opp) => (
-            <div key={opp.id} className="opportunity-card">
-              <div className="card-header">
-                <h3>{opp.title}</h3>
-                <span className="source-badge">{opp.source_platform}</span>
-              </div>
+        </div>
+      )}
 
-              <div className="card-org">
-                <strong>{opp.organization}</strong>
-              </div>
+      {/* Tab filter */}
+      <div className="analyze-tabs">
+        <button className={`tab${tab === 'unanalyzed' ? ' tab--active' : ''}`} onClick={() => setTab('unanalyzed')}>
+          Unanalyzed <span className="tab-count">{unanalyzed}</span>
+        </button>
+        <button className={`tab${tab === 'analyzed' ? ' tab--active' : ''}`} onClick={() => setTab('analyzed')}>
+          Analyzed <span className="tab-count">{analyzed}</span>
+        </button>
+      </div>
 
-              {opp.processed_at ? (
-                <>
-                  <div className="score-section">
-                    <div className="score-item">
-                      <label>Relevance</label>
-                      <div className="score-bar">
-                        <div
-                          className="score-fill"
-                          style={{
-                            width: `${opp.relevance_score}%`,
-                            backgroundColor: getRelevanceColor(opp.relevance_score),
-                          }}
-                        >
-                          {opp.relevance_score}%
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="score-item">
-                      <label>Confidence</label>
-                      <div className="score-bar">
-                        <div
-                          className="score-fill"
-                          style={{
-                            width: `${opp.confidence_score}%`,
-                            backgroundColor: '#3498db',
-                          }}
-                        >
-                          {opp.confidence_score}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="priority-section">
-                    <span
-                      className="priority-badge"
-                      style={{ backgroundColor: getPriorityBadgeColor(opp.priority) }}
-                    >
-                      {opp.priority}
-                    </span>
-                  </div>
-
-                  {opp.ai_summary && (
-                    <div className="summary-section">
-                      <h4>AI Summary</h4>
-                      <p>{opp.ai_summary}</p>
-                    </div>
-                  )}
-
-                  <div className="metadata">
-                    <small>
-                      Analyzed: {new Date(opp.processed_at).toLocaleDateString()}
-                    </small>
-                  </div>
-                </>
-              ) : (
-                <div className="unanalyzed-section">
-                  <p className="unanalyzed-text">Not yet analyzed</p>
-                  <button
-                    className="btn btn-small btn-analyze"
-                    onClick={() => analyzeSingle(opp.id)}
-                    disabled={loading}
-                  >
-                    {loading ? '⏳' : '🔍'} Analyze
-                  </button>
+      {/* List */}
+      {shown.length === 0 ? (
+        <div className="empty-state">
+          <FaRobot />
+          <p>{tab === 'analyzed' ? 'No analyzed opportunities yet' : 'All opportunities have been analyzed!'}</p>
+        </div>
+      ) : (
+        <div className="analyze-list">
+          {shown.map(opp => (
+            <div key={opp.id} className="analyze-card">
+              <div className="analyze-card-top">
+                <div className="analyze-card-meta">
+                  <SourceBadge source={opp.source_platform} />
+                  <PriorityBadge priority={opp.priority || 'Low'} />
                 </div>
+                {!opp.processed_at && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleSingle(opp.id)}
+                    disabled={!!analyzingId}
+                  >
+                    {analyzingId === opp.id ? <><FaSpinner className="spin" /> Analyzing…</> : 'Analyze'}
+                  </button>
+                )}
+              </div>
+
+              <h3 className="analyze-title">{opp.title}</h3>
+              <p className="analyze-org">{opp.organization}</p>
+
+              {opp.processed_at && (
+                <>
+                  <div className="analyze-scores">
+                    <AnalyzeBar label="Relevance" value={opp.relevance_score} color={relevColor(opp.relevance_score)} />
+                    <AnalyzeBar label="Confidence" value={opp.confidence_score} color="var(--info)" />
+                  </div>
+                  {opp.ai_summary && <p className="analyze-summary">{opp.ai_summary}</p>}
+                  <p className="analyze-date text-muted text-xs">
+                    Analyzed {new Date(opp.processed_at).toLocaleDateString()}
+                  </p>
+                </>
               )}
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <div className="info-box">
-        <h3>ℹ️ How AI Analysis Works</h3>
-        <ul>
-          <li>
-            <strong>Relevance Score:</strong> How well the opportunity matches Africa development focus
-            (0-100 scale)
-          </li>
-          <li>
-            <strong>Confidence Score:</strong> How reliable the AI assessment is based on available
-            information
-          </li>
-          <li>
-            <strong>Priority:</strong> Recommended action level (High/Medium/Low)
-          </li>
-          <li>
-            <strong>AI Summary:</strong> Concise overview of key opportunity details
-          </li>
-          <li>Use batch analysis to analyze multiple opportunities at once</li>
-          <li>Individual analysis available for each unanalyzed opportunity</li>
+      {/* Info */}
+      <div className="info-section">
+        <h3>How AI Analysis Works</h3>
+        <ul className="info-list">
+          <li><strong>Relevance Score:</strong> 0–100 match against Africa digital focus criteria</li>
+          <li><strong>Confidence Score:</strong> How well-described the opportunity is</li>
+          <li><strong>Priority:</strong> High / Medium / Low action recommendation</li>
+          <li><strong>AI Summary:</strong> Concise description of key details</li>
         </ul>
       </div>
     </div>
   );
-};
+}
 
-export default Analyze;
+function AnalyzeBar({ label, value = 0, color }) {
+  return (
+    <div className="a-bar-row">
+      <span className="a-bar-label">{label}</span>
+      <div className="a-bar-track">
+        <div className="a-bar-fill" style={{ width: `${value}%`, background: color }} />
+      </div>
+      <span className="a-bar-val">{value}%</span>
+    </div>
+  );
+}
